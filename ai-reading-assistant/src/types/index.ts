@@ -29,6 +29,9 @@ export interface Settings {
   incognitoMode: boolean;
   apiConfigs: APIConfig[];
   activeConfigId: string;
+  shortcuts: {
+    sendMessage: string;
+  };
 }
 
 export interface HistoryItem {

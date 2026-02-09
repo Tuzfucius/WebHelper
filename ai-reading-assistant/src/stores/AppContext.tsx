@@ -61,7 +61,10 @@ const initialState: AppState = {
     apiConfigs: defaultAPIConfigs,
     activeConfigId: 'default-openai',
     temperature: 0.7,
-    maxTokens: 4096
+    maxTokens: 4096,
+    shortcuts: {
+      sendMessage: 'Ctrl+Enter'
+    }
   },
   messages: [],
   connectionStatus: { state: 'idle' },

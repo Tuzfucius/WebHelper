@@ -2,6 +2,8 @@ import React from 'react'
 import { APIConfiguration } from './components/APIConfiguration'
 import { UrlManager } from './components/UrlManager'
 import { PromptManager } from './components/PromptManager'
+import { ShortcutSettings } from './components/ShortcutSettings'
+import { SkillSettings } from './components/SkillSettings'
 import { useSettings, useConnection } from '../stores/AppContext'
 import { useConnectionTester } from '../hooks/useConnectionTester'
 
@@ -72,6 +74,13 @@ export const SettingsPage: React.FC = () => {
             settings={settings}
             onUpdate={updateSettings}
           />
+
+          <ShortcutSettings
+            settings={settings}
+            onUpdate={updateSettings}
+          />
+
+          <SkillSettings />
 
           {/* URL Manager */}
           <UrlManager

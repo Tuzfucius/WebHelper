@@ -76,19 +76,20 @@ export const APIConfiguration: React.FC<APIConfigurationProps> = ({
     return (
         <div className="space-y-6">
             {/* Incognito Mode Toggle */}
-            <div className="p-4 bg-[#F3EDF7] dark:bg-[#2B2930] rounded-2xl flex items-center justify-between border border-[#E7E0EC] dark:border-[#49454F]">
+            {/* Incognito Mode Toggle */}
+            <div className="p-4 bg-[var(--md3-surface-container)] dark:bg-[var(--md3-surface-container-high)] rounded-2xl flex items-center justify-between border border-[var(--md3-outline-variant)]">
                 <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-full ${settings.incognitoMode ? 'bg-[#6750A4] text-white' : 'bg-[#EADDFF] text-[#6750A4]'}`}>
+                    <div className={`p-2 rounded-full ${settings.incognitoMode ? 'bg-[var(--md3-primary)] text-white' : 'bg-[var(--md3-primary-container)] text-[var(--md3-on-primary-container)]'}`}>
                         {settings.incognitoMode ? <ShieldOff size={20} /> : <Shield size={20} />}
                     </div>
                     <div>
-                        <h4 className="text-sm font-bold">{t.incognitoMode}</h4>
-                        <p className="text-[10px] text-[#49454F] dark:text-[#CAC4D0]">{t.incognitoHint}</p>
+                        <h4 className="text-sm font-bold text-[var(--md3-on-surface)]">{t.incognitoMode}</h4>
+                        <p className="text-[10px] text-[var(--md3-on-surface-variant)]">{t.incognitoHint}</p>
                     </div>
                 </div>
                 <button
                     onClick={() => onUpdate({ incognitoMode: !settings.incognitoMode })}
-                    className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 ${settings.incognitoMode ? 'bg-[#6750A4]' : 'bg-[#79747E]/30'}`}
+                    className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 ${settings.incognitoMode ? 'bg-[var(--md3-primary)]' : 'bg-[var(--md3-outline)]/30'}`}
                 >
                     <div className={`w-4 h-4 rounded-full bg-white transition-transform duration-200 ${settings.incognitoMode ? 'translate-x-6' : 'translate-x-0'}`} />
                 </button>
@@ -96,8 +97,8 @@ export const APIConfiguration: React.FC<APIConfigurationProps> = ({
 
             {/* Multi-API Management */}
             <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                    <h3 className="text-sm font-bold text-[#1D1B20] dark:text-[#E6E1E5]">{t.multiAPI}</h3>
+                <div className="flex justify-between items-center px-1">
+                    <h3 className="text-sm font-bold text-[var(--md3-on-surface)]">{t.multiAPI}</h3>
                     {!isAdding && (
                         <button
                             onClick={() => {
@@ -105,7 +106,7 @@ export const APIConfiguration: React.FC<APIConfigurationProps> = ({
                                 setIsAdding(true)
                                 setEditingId(null)
                             }}
-                            className="p-1 pr-2 bg-[#6750A4] text-white rounded-full text-[10px] font-bold flex items-center gap-1"
+                            className="px-3 py-1.5 bg-[var(--md3-primary)] text-white rounded-full text-[10px] font-bold flex items-center gap-1.5 shadow-sm hover:shadow-md transition-all active:scale-95"
                         >
                             <Plus size={14} /> {t.addConfig}
                         </button>
@@ -113,14 +114,14 @@ export const APIConfiguration: React.FC<APIConfigurationProps> = ({
                 </div>
 
                 {isAdding ? (
-                    <div className="p-4 bg-white dark:bg-[#2B2930] border border-[#6750A4]/30 rounded-2xl space-y-4 shadow-inner">
+                    <div className="p-4 bg-white dark:bg-[var(--md3-surface-container-high)] border border-[var(--md3-primary)]/30 rounded-2xl space-y-4 shadow-xl animate-fade-in">
                         <div className="space-y-3">
                             <input
                                 type="text"
                                 placeholder="Config Name"
                                 value={newConfig.name}
                                 onChange={(e) => setNewConfig({ ...newConfig, name: e.target.value })}
-                                className="w-full px-3 py-2 text-sm border-b focus:border-[#6750A4] outline-none dark:bg-transparent dark:text-white"
+                                className="w-full px-3 py-2 text-sm border-b border-[var(--md3-outline-variant)] focus:border-[var(--md3-primary)] outline-none bg-transparent text-[var(--md3-on-surface)]"
                             />
 
                             <div className="grid grid-cols-3 gap-2">
@@ -133,44 +134,46 @@ export const APIConfiguration: React.FC<APIConfigurationProps> = ({
                                             protocol: p === 'custom' ? 'openai' : p,
                                             baseUrl: p === 'openai' ? 'https://api.openai.com/v1' : p === 'anthropic' ? 'https://api.anthropic.com/v1' : newConfig.baseUrl
                                         })}
-                                        className={`py-1 text-[10px] rounded-md border font-bold capitalize ${newConfig.provider === p ? 'bg-[#EADDFF] border-[#6750A4] text-[#6750A4]' : 'border-gray-200'}`}
+                                        className={`py-1.5 text-[10px] rounded-lg border font-bold capitalize transition-all ${newConfig.provider === p ? 'bg-[var(--md3-primary-container)] border-[var(--md3-primary)] text-[var(--md3-on-primary-container)]' : 'border-[var(--md3-outline-variant)] text-[var(--md3-on-surface-variant)] hover:bg-black/5'}`}
                                     >
                                         {p}
                                     </button>
                                 ))}
                             </div>
 
-                            <input
-                                type="text"
-                                placeholder={t.modelName}
-                                value={newConfig.modelName}
-                                onChange={(e) => setNewConfig({ ...newConfig, modelName: e.target.value })}
-                                className="w-full px-3 py-2 text-xs border border-gray-100 rounded-lg dark:bg-[#141218] dark:border-gray-800"
-                            />
-
-                            <input
-                                type="password"
-                                placeholder={t.apiKey}
-                                value={newConfig.apiKey}
-                                onChange={(e) => setNewConfig({ ...newConfig, apiKey: e.target.value })}
-                                className="w-full px-3 py-2 text-xs border border-gray-100 rounded-lg dark:bg-[#141218] dark:border-gray-800"
-                            />
-
-                            {newConfig.provider === 'custom' && (
+                            <div className="grid grid-cols-1 gap-2">
                                 <input
                                     type="text"
-                                    placeholder={t.baseUrl}
-                                    value={newConfig.baseUrl}
-                                    onChange={(e) => setNewConfig({ ...newConfig, baseUrl: e.target.value })}
-                                    className="w-full px-3 py-2 text-xs border border-gray-100 rounded-lg dark:bg-[#141218] dark:border-gray-800"
+                                    placeholder={t.modelName}
+                                    value={newConfig.modelName}
+                                    onChange={(e) => setNewConfig({ ...newConfig, modelName: e.target.value })}
+                                    className="w-full px-4 py-2 text-xs bg-[var(--md3-surface-container)] rounded-xl border border-[var(--md3-outline-variant)] focus:border-[var(--md3-primary)] outline-none text-[var(--md3-on-surface)]"
                                 />
-                            )}
 
-                            <div className="space-y-4">
-                                <div className="space-y-1">
-                                    <div className="flex justify-between">
-                                        <label className="text-[10px] font-medium text-gray-500">Temperature</label>
-                                        <span className="text-[10px] text-[#6750A4] font-bold">{(newConfig.temperature ?? 0.7).toFixed(1)}</span>
+                                <input
+                                    type="password"
+                                    placeholder={t.apiKey}
+                                    value={newConfig.apiKey}
+                                    onChange={(e) => setNewConfig({ ...newConfig, apiKey: e.target.value })}
+                                    className="w-full px-4 py-2 text-xs bg-[var(--md3-surface-container)] rounded-xl border border-[var(--md3-outline-variant)] focus:border-[var(--md3-primary)] outline-none text-[var(--md3-on-surface)]"
+                                />
+
+                                {newConfig.provider === 'custom' && (
+                                    <input
+                                        type="text"
+                                        placeholder={t.baseUrl}
+                                        value={newConfig.baseUrl}
+                                        onChange={(e) => setNewConfig({ ...newConfig, baseUrl: e.target.value })}
+                                        className="w-full px-4 py-2 text-xs bg-[var(--md3-surface-container)] rounded-xl border border-[var(--md3-outline-variant)] focus:border-[var(--md3-primary)] outline-none text-[var(--md3-on-surface)]"
+                                    />
+                                )}
+                            </div>
+
+                            <div className="space-y-4 pt-2">
+                                <div className="space-y-1.5">
+                                    <div className="flex justify-between items-center px-1">
+                                        <label className="text-[10px] font-bold text-[var(--md3-on-surface-variant)] opacity-70">Temperature</label>
+                                        <span className="text-[10px] text-[var(--md3-primary)] font-black">{(newConfig.temperature ?? 0.7).toFixed(1)}</span>
                                     </div>
                                     <input
                                         type="range"
@@ -179,56 +182,56 @@ export const APIConfiguration: React.FC<APIConfigurationProps> = ({
                                         step="0.1"
                                         value={newConfig.temperature ?? 0.7}
                                         onChange={(e) => setNewConfig({ ...newConfig, temperature: parseFloat(e.target.value) })}
-                                        className="w-full h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-[#6750A4]"
+                                        className="w-full h-1.5 bg-[var(--md3-outline-variant)]/30 rounded-lg appearance-none cursor-pointer accent-[var(--md3-primary)]"
                                     />
                                 </div>
 
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-medium text-gray-500">Max Tokens</label>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold text-[var(--md3-on-surface-variant)] opacity-70 px-1">Max Tokens</label>
                                     <input
                                         type="number"
                                         placeholder="4096"
                                         value={newConfig.maxTokens ?? 4096}
                                         onChange={(e) => setNewConfig({ ...newConfig, maxTokens: parseInt(e.target.value) })}
-                                        className="w-full px-3 py-2 text-xs border border-gray-100 rounded-lg dark:bg-[#141218] dark:border-gray-800"
+                                        className="w-full px-4 py-2 text-xs bg-[var(--md3-surface-container)] rounded-xl border border-[var(--md3-outline-variant)] focus:border-[var(--md3-primary)] outline-none text-[var(--md3-on-surface)]"
                                     />
                                 </div>
                             </div>
                         </div>
 
-                        <div className="flex gap-2">
-                            <button onClick={handleSaveConfig} className="flex-1 py-2 bg-[#6750A4] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1">
+                        <div className="flex gap-2.5 pt-2">
+                            <button onClick={handleSaveConfig} className="flex-1 py-2.5 bg-[var(--md3-primary)] text-white rounded-xl text-xs font-black shadow-lg shadow-[var(--md3-primary)]/20 active:scale-95 transition-all flex items-center justify-center gap-2">
                                 <Save size={14} /> {t.save}
                             </button>
-                            <button onClick={() => setIsAdding(false)} className="px-4 py-2 border border-gray-200 rounded-xl text-xs">
+                            <button onClick={() => setIsAdding(false)} className="px-4 py-2.5 bg-[var(--md3-surface-container-high)] text-[var(--md3-on-surface)] rounded-xl text-xs font-bold hover:bg-black/5 transition-colors">
                                 {t.cancel}
                             </button>
                         </div>
                     </div>
                 ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-2.5">
                         {(settings.apiConfigs || []).map((config) => (
                             <div
                                 key={config.id}
                                 onClick={() => handleActivate(config.id)}
-                                className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between
+                                className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group
                                     ${settings.activeConfigId === config.id
-                                        ? 'border-[#6750A4] bg-[#F3EDF7] dark:bg-[#4F378B]/20 shadow-sm'
-                                        : 'border-[#79747E]/10 bg-white dark:bg-[#141218] hover:border-[#6750A4]/50'
+                                        ? 'border-[var(--md3-primary)] bg-[var(--md3-primary-container)] shadow-sm'
+                                        : 'border-[var(--md3-outline-variant)] bg-[var(--md3-surface)] hover:border-[var(--md3-primary)]/50 hover:bg-[var(--md3-surface-container)]'
                                     }`}
                             >
-                                <div className="flex items-center gap-3">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${settings.activeConfigId === config.id ? 'bg-[#6750A4] text-white' : 'bg-gray-100 dark:bg-gray-800'}`}>
-                                        {settings.activeConfigId === config.id ? <Check size={16} /> : <span className="text-[10px] uppercase font-bold">{config.provider[0]}</span>}
+                                <div className="flex items-center gap-3.5">
+                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${settings.activeConfigId === config.id ? 'bg-[var(--md3-primary)] text-white shadow-sm' : 'bg-[var(--md3-surface-container-high)] text-[var(--md3-on-surface-variant)]'}`}>
+                                        {settings.activeConfigId === config.id ? <Check size={18} /> : <span className="text-xs uppercase font-black">{config.provider[0]}</span>}
                                     </div>
                                     <div>
-                                        <div className="text-sm font-bold capitalize line-clamp-1">{config.name || 'Unnamed Config'}</div>
-                                        <div className="text-[10px] text-gray-500">{config.provider} • {config.modelName}</div>
+                                        <div className={`text-sm font-black line-clamp-1 ${settings.activeConfigId === config.id ? 'text-[var(--md3-on-primary-container)]' : 'text-[var(--md3-on-surface)]'}`}>{config.name || 'Unnamed Config'}</div>
+                                        <div className={`text-[10px] font-bold opacity-60 ${settings.activeConfigId === config.id ? 'text-[var(--md3-on-primary-container)]' : 'text-[var(--md3-on-surface-variant)]'}`}>{config.provider} • {config.modelName}</div>
                                     </div>
                                 </div>
-                                <div className="flex gap-1">
-                                    <button onClick={(e) => startEdit(config, e)} className="p-2 text-gray-400 hover:text-blue-500"><Edit2 size={14} /></button>
-                                    <button onClick={(e) => handleDelete(config.id, e)} className="p-2 text-gray-400 hover:text-red-500"><Trash2 size={14} /></button>
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={(e) => startEdit(config, e)} className="p-2 text-[var(--md3-on-surface-variant)] hover:text-[var(--md3-primary)] transition-colors"><Edit2 size={14} /></button>
+                                    <button onClick={(e) => handleDelete(config.id, e)} className="p-2 text-[var(--md3-on-surface-variant)] hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
                                 </div>
                             </div>
                         ))}
@@ -237,11 +240,11 @@ export const APIConfiguration: React.FC<APIConfigurationProps> = ({
             </div>
 
             {/* Global Settings (Context Length etc) */}
-            <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
-                <div className="space-y-2">
-                    <div className="flex justify-between">
-                        <label className="text-xs font-medium text-[#49454F] dark:text-[#CAC4D0]">{t.contextMemory}</label>
-                        <span className="text-xs text-[#6750A4] font-bold dark:text-[#D0BCFF]">{settings.contextLength}</span>
+            <div className="space-y-4 pt-6 mt-2 border-t border-[var(--md3-outline-variant)]/30">
+                <div className="space-y-2.5 px-1">
+                    <div className="flex justify-between items-center">
+                        <label className="text-xs font-black text-[var(--md3-on-surface)]">{t.contextMemory}</label>
+                        <span className="px-2 py-0.5 bg-[var(--md3-primary-container)] text-[var(--md3-primary)] rounded-full text-xs font-black">{settings.contextLength}</span>
                     </div>
                     <input
                         type="range"
@@ -250,9 +253,9 @@ export const APIConfiguration: React.FC<APIConfigurationProps> = ({
                         step="1"
                         value={settings.contextLength}
                         onChange={(e) => onUpdate({ contextLength: parseInt(e.target.value) })}
-                        className="w-full accent-[#6750A4] dark:accent-[#D0BCFF]"
+                        className="w-full h-1.5 bg-[var(--md3-outline-variant)]/30 rounded-lg appearance-none cursor-pointer accent-[var(--md3-primary)]"
                     />
-                    <p className="text-[10px] text-[#79747E] dark:text-[#938F99]">
+                    <p className="text-[10px] font-bold text-[var(--md3-on-surface-variant)] opacity-60 leading-relaxed">
                         {t.contextHint.replace('{n}', (settings.contextLength || 0).toString())}
                     </p>
                 </div>
@@ -261,12 +264,12 @@ export const APIConfiguration: React.FC<APIConfigurationProps> = ({
             <button
                 onClick={onTestConnection}
                 disabled={isTesting || !settings.apiKey}
-                className="w-full py-3 bg-[#6750A4] text-white rounded-2xl text-sm font-bold shadow-md active:scale-95 transition-transform disabled:opacity-50"
+                className="w-full py-3.5 bg-[var(--md3-primary)] text-white rounded-2xl text-sm font-black shadow-lg shadow-[var(--md3-primary)]/30 active:scale-[0.98] hover:brightness-110 shadow-elevation-2 transition-all disabled:opacity-50 disabled:pointer-events-none"
             >
                 {isTesting ? t.testing : t.testConnection}
             </button>
-            {connectionStatus === 'connected' && <p className="text-center text-xs text-green-600 font-bold">{t.connected}</p>}
-            {connectionStatus === 'error' && <p className="text-center text-xs text-red-600 font-bold">{t.connectionFailed}</p>}
+            {connectionStatus === 'connected' && <p className="text-center text-xs text-green-600 font-black animate-fade-in">{t.connected}</p>}
+            {connectionStatus === 'error' && <p className="text-center text-xs text-red-600 font-black animate-fade-in">{t.connectionFailed}</p>}
         </div>
     )
 }

@@ -9,6 +9,7 @@ import { onMessage, sendToActiveTab } from '../utils/messaging'
 import { contextEngine } from '../utils/context'
 import { useTranslation } from '../utils/i18n'
 import type { EnhancedContextData, ScreenshotData, PromptTemplate, Message } from '../types'
+import { skillManager } from '../core/skills'
 import { AnimatePresence, motion } from 'framer-motion'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -252,8 +253,40 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
     }
   }, [])
 
-  const handleSendMessage = async () => {
-    if ((!userInput.trim() && !uploadedImage && !contextScreenshot) || isTyping) return
+  const handleCopy = (content: string | any[]) => {
+    const text = typeof content === 'string' ? content : JSON.stringify(content)
+    navigator.clipboard.writeText(text).then(() => {
+      // Optional: Add a toast notification here if available
+    })
+  }
+
+  const handleRegenerate = async (msgId: string) => {
+    // Find the message index
+    const idx = messages.findIndex(m => m.id === msgId)
+    if (idx === -1) return
+
+    // If it's an assistant message, we typically want to remove it and rewrite
+    // If it's a user message, we might want to re-trigger from there
+    const msg = messages[idx]
+
+    if (msg.role === 'assistant') {
+      deleteMessage(msg.id)
+      // Trigger send again using the previous user message
+      const prevUserMsg = messages[idx - 1]
+      if (prevUserMsg && prevUserMsg.role === 'user') {
+        const content = typeof prevUserMsg.content === 'string' ? prevUserMsg.content : ''
+        setUserInput(content)
+        // We'll call sendMessage in a bit, but we need to handle the state properly
+        // For simplicity in this UI, we just set the input and let user click send or we trigger it.
+        // Actually, let's just trigger its logic.
+        handleSendMessage(true, content)
+      }
+    }
+  }
+
+  const handleSendMessage = async (isRegenerate = false, overrideInput?: string) => {
+    const textToSend = overrideInput ?? userInput
+    if ((!textToSend.trim() && !uploadedImage && !contextScreenshot) || isTyping) return
 
     if (!settings.apiKey) {
       alert('Please configure your API Key in the Settings tab first.')
@@ -261,17 +294,20 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
       return
     }
 
-    const userMessageContent = userInput + (uploadedImage ? ' [Image Attached]' : '') + (contextScreenshot ? ' [Screenshot Attached]' : '')
+    if (!isRegenerate) {
+      const userMessageContent = textToSend + (uploadedImage ? ' [Image Attached]' : '') + (contextScreenshot ? ' [Screenshot Attached]' : '')
+      addMessage({
+        role: 'user',
+        content: userMessageContent
+      })
+      setUserInput('')
+    }
 
-    addMessage({
-      role: 'user',
-      content: userMessageContent
-    })
-
-    setUserInput('')
     setUploadedImage(null)
     setContextScreenshot(undefined)
     setIsTyping(true)
+
+    // ... rest of the send logic remains similar but uses textToSend
 
     // Log stats
     if (initialContext.length > 50) {
@@ -360,6 +396,9 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
         headers['Authorization'] = `Bearer ${settings.apiKey}`
       }
 
+      // Prepare tools
+      const tools = skillManager.getSkillsDefinitions();
+
       const response = await fetch(`${baseUrl}${endpoint}`, {
         method: 'POST',
         headers,
@@ -370,7 +409,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
           system: isAnthropic ? systemContent : undefined,
           temperature: settings.temperature ?? 0.7,
           max_tokens: settings.maxTokens ?? 4096,
-          stream: true
+          stream: true,
+          tools: tools.length > 0 ? tools.map(t => ({ type: 'function', function: t })) : undefined
         })
       })
 
@@ -391,6 +431,14 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
               const data = JSON.parse(line.replace('data: ', ''))
               let delta = ''
               if (!isAnthropic) {
+                // Handle tool_calls if any (simplified for now)
+                if (data.choices[0]?.delta?.tool_calls) {
+                  const tc = data.choices[0].delta.tool_calls[0];
+                  if (tc.function) {
+                    // Logic to collect tool call arguments and execute
+                    console.log('Tool call detected:', tc.function.name);
+                  }
+                }
                 delta = data.choices[0]?.delta?.content || ''
               } else {
                 delta = data.type === 'content_block_delta' ? data.delta?.text : ''
@@ -450,27 +498,37 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
   }
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
-    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-      event.preventDefault()
-      handleSendMessage()
+    const isCtrlEnter = (event.ctrlKey || event.metaKey) && event.key === 'Enter'
+    const isEnterOnly = event.key === 'Enter' && !event.ctrlKey && !event.metaKey && !event.shiftKey
+
+    if (settings.shortcuts.sendMessage === 'Ctrl+Enter') {
+      if (isCtrlEnter) {
+        event.preventDefault()
+        handleSendMessage()
+      }
+    } else if (settings.shortcuts.sendMessage === 'Enter') {
+      if (isEnterOnly) {
+        event.preventDefault()
+        handleSendMessage()
+      }
     }
   }
 
   return (
-    <div className={`h-full flex flex-col font-sans transition-colors duration-200 ${settings.theme === 'dark' ? 'bg-[#141218] text-[#E6E1E5]' : 'bg-[#FDFCFE] text-[#1D1B20]'}`}>
+    <div className={`h-full flex flex-col font-sans transition-colors duration-300 ${settings.theme === 'dark' ? 'bg-[#141218]' : 'bg-[#FEF7FF]'}`}>
       {!isScreenshotMode && (
         <>
-          <header className="flex-none px-4 py-3 bg-white/80 dark:bg-[#141218]/80 backdrop-blur-md border-b border-[#E7E0EC] dark:border-[#49454F] sticky top-0 z-10 flex items-center justify-between">
-            <div className="flex items-center gap-2 relative">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#D0BCFF] to-[#EADDFF] flex items-center justify-center text-[#21005D]">
+          <header className="flex-none px-4 py-3 bg-white/70 dark:bg-[#141218]/70 backdrop-blur-xl border-b border-[#E7E0EC] dark:border-[#49454F] sticky top-0 z-20 flex items-center justify-between">
+            <div className="flex items-center gap-3 relative">
+              <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-[#D0BCFF] to-[#6750A4] flex items-center justify-center text-white shadow-sm">
                 <Sparkles size={18} />
               </div>
               <div className="cursor-pointer group" onClick={() => setShowPromptSelector(!showPromptSelector)}>
-                <h1 className="text-sm font-semibold leading-tight flex items-center gap-1 dark:text-[#E6E1E5]">
+                <h1 className="text-sm font-bold leading-tight flex items-center gap-1.5 text-[#1D1B20] dark:text-[#E6E1E5]">
                   {activePromptName}
-                  <ChevronDown size={14} className={`transition-transform duration-200 ${showPromptSelector ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={14} className={`transition-transform duration-300 ${showPromptSelector ? 'rotate-180' : ''} text-[#49454F] dark:text-[#CAC4D0]`} />
                 </h1>
-                <p className="text-[10px] text-[#49454F] dark:text-[#CAC4D0] font-medium leading-none opacity-80">
+                <p className="text-[10px] text-[#49454F] dark:text-[#CAC4D0] font-bold tracking-wider uppercase opacity-70">
                   {settings.provider}
                 </p>
               </div>
@@ -535,31 +593,34 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
                         <div className={`w-8 h-8 rounded-full flex-none flex items-center justify-center ${msg.role === 'user' ? 'bg-[#6750A4] text-white' : 'bg-[#EADDFF] dark:bg-[#4A4458]'}`}>
                           {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
                         </div>
-                        <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm shadow-sm text-left relative ${msg.role === 'user' ? 'bg-[#6750A4] text-white' : 'bg-white dark:bg-[#2B2930] dark:border-[#49454F] border'}`}>
+                        <div className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm shadow-sm relative transition-all duration-200 ${msg.role === 'user' ? 'bg-[#6750A4] text-white' : 'bg-white dark:bg-[#2B2930] dark:border-[#49454F] border border-[#E7E0EC]'}`}>
                           {editingMessageId === msg.id ? (
                             <div className="space-y-2">
                               <textarea
                                 value={editValue}
                                 onChange={(e) => setEditValue(e.target.value)}
-                                className="w-full bg-transparent border-none outline-none resize-none text-sm p-0 min-h-[60px]"
+                                className="w-full bg-transparent border-none outline-none resize-none text-sm p-0 min-h-[60px] text-inherit"
                                 autoFocus
                               />
                               <div className="flex justify-end gap-2 text-xs">
-                                <button onClick={() => { updateMessage(msg.id, editValue); setEditingMessageId(null) }} className="p-1 px-2 bg-[#6750A4] text-white rounded">Save</button>
-                                <button onClick={() => setEditingMessageId(null)} className="p-1 px-2 border rounded">Cancel</button>
+                                <button onClick={() => { updateMessage(msg.id, editValue); setEditingMessageId(null) }} className="px-3 py-1 bg-[#6750A4] text-white rounded-full hover:bg-[#5235a0] transition-colors">Save</button>
+                                <button onClick={() => setEditingMessageId(null)} className="px-3 py-1 border border-current rounded-full hover:bg-black/5 transition-colors">Cancel</button>
                               </div>
                             </div>
                           ) : (
                             <>
-                              <div className="prose prose-sm dark:prose-invert max-w-none break-words">
+                              <div className="prose prose-sm dark:prose-invert max-w-none break-words leading-relaxed text-[#1D1B20] dark:text-[#E6E1E5]">
                                 {renderMessageContent(msg.content)}
                               </div>
-                              <div className={`absolute top-1 ${msg.role === 'user' ? 'left-[-40px]' : 'right-[-40px]'} opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity`}>
-                                <button onClick={() => { setEditingMessageId(msg.id); setEditValue(typeof msg.content === 'string' ? msg.content : '') }} title="Edit" className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-400"><Edit2 size={12} /></button>
-                                {msg.role === 'assistant' && idx === messages.length - 1 && (
-                                  <button onClick={handleSendMessage} title="Regenerate" className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-400"><RotateCcw size={12} /></button>
-                                )}
-                                <button onClick={() => { if (confirm('Delete?')) deleteMessage(msg.id) }} title="Delete" className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-400 text-red-400"><Trash2 size={12} /></button>
+                              <div className={`absolute top-0 ${msg.role === 'user' ? 'left-0 -translate-x-full pr-2' : 'right-0 translate-x-full pl-2'} opacity-0 group-hover:opacity-100 flex flex-col gap-1 transition-all duration-200 z-10`}>
+                                <div className="flex flex-col gap-1.5 p-1.5 rounded-xl bg-white/90 dark:bg-[#1C1B1F]/90 backdrop-blur-md shadow-lg border border-[#E7E0EC] dark:border-[#49454F]">
+                                  <button onClick={() => handleCopy(msg.content)} title="Copy" className="p-1.5 hover:bg-[#F3EDF7] dark:hover:bg-[#4A4458] rounded-lg text-[#49454F] dark:text-[#CAC4D0] transition-colors"><Bot size={14} /></button>
+                                  <button onClick={() => { setEditingMessageId(msg.id); setEditValue(typeof msg.content === 'string' ? msg.content : '') }} title="Edit" className="p-1.5 hover:bg-[#F3EDF7] dark:hover:bg-[#4A4458] rounded-lg text-[#49454F] dark:text-[#CAC4D0] transition-colors"><Edit2 size={14} /></button>
+                                  {msg.role === 'assistant' && idx === messages.length - 1 && (
+                                    <button onClick={() => handleRegenerate(msg.id)} title="Regenerate" className="p-1.5 hover:bg-[#F3EDF7] dark:hover:bg-[#4A4458] rounded-lg text-[#49454F] dark:text-[#CAC4D0] transition-colors"><RotateCcw size={14} /></button>
+                                  )}
+                                  <button onClick={() => { if (confirm('Delete?')) deleteMessage(msg.id) }} title="Delete" className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-red-500 transition-colors"><Trash2 size={14} /></button>
+                                </div>
                               </div>
                             </>
                           )}
@@ -636,14 +697,17 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
             </AnimatePresence>
           </div>
         </>
-      )}
+      )
+      }
 
-      {isScreenshotMode && (
-        <ScreenshotCropper
-          onCapture={(imageData, rect) => { setContextScreenshot({ imageData, rect }); setIsScreenshotMode(false); }}
-          onCancel={() => setIsScreenshotMode(false)}
-        />
-      )}
-    </div>
+      {
+        isScreenshotMode && (
+          <ScreenshotCropper
+            onCapture={(imageData, rect) => { setContextScreenshot({ imageData, rect }); setIsScreenshotMode(false); }}
+            onCancel={() => setIsScreenshotMode(false)}
+          />
+        )
+      }
+    </div >
   )
 }
