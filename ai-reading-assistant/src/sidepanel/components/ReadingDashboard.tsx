@@ -100,6 +100,28 @@ export const ReadingDashboard: React.FC = () => {
 
     return (
         <div className="space-y-6 p-2 pb-6">
+            <div className="grid grid-cols-3 gap-3">
+                <div className={`p-3 rounded-xl shadow-sm border ${isDark ? 'bg-[#141218] border-[#49454F]' : 'bg-white border-[#E0E0E0]'}`}>
+                    <div className="text-[10px] text-gray-500 mb-1">{t.totalWords}</div>
+                    <div className="text-lg font-bold" style={{ color: primaryColor }}>
+                        {currentMetrics?.wordCount || 0}
+                    </div>
+                </div>
+                <div className={`p-3 rounded-xl shadow-sm border ${isDark ? 'bg-[#141218] border-[#49454F]' : 'bg-white border-[#E0E0E0]'}`}>
+                    <div className="text-[10px] text-gray-500 mb-1">{t.avgSpeed}</div>
+                    <div className="text-lg font-bold" style={{ color: primaryColor }}>
+                        {currentMetrics?.wpm || 0}
+                        <span className="text-[8px] ml-1 font-normal opacity-70">{t.wpm}</span>
+                    </div>
+                </div>
+                <div className={`p-3 rounded-xl shadow-sm border ${isDark ? 'bg-[#141218] border-[#49454F]' : 'bg-white border-[#E0E0E0]'}`}>
+                    <div className="text-[10px] text-gray-500 mb-1">{t.estCost}</div>
+                    <div className="text-lg font-bold" style={{ color: primaryColor }}>
+                        ${((currentMetrics?.wordCount || 0) / 750 * 0.002).toFixed(4)}
+                    </div>
+                </div>
+            </div>
+
             <div className={`p-4 rounded-xl shadow-sm border transition-colors ${isDark ? 'bg-[#141218] border-[#49454F]' : 'bg-white border-[#E0E0E0]'}`}>
                 <h3 className={`text-sm font-semibold mb-4 transition-colors`} style={{ color: textColor }}>{t.readingTime}</h3>
                 <div style={{ width: '100%', height: 200, minHeight: 200 }}>

@@ -24,6 +24,7 @@ type AppAction =
   | { type: 'LOAD_HISTORY'; payload: HistoryItem[] }
   | { type: 'ADD_HISTORY_ITEM'; payload: HistoryItem }
   | { type: 'CLEAR_HISTORY' }
+  | { type: 'DELETE_MESSAGE'; payload: string }
 
 const defaultAPIConfigs: APIConfig[] = [
   {
@@ -58,7 +59,9 @@ const initialState: AppState = {
     language: 'zh',
     incognitoMode: false,
     apiConfigs: defaultAPIConfigs,
-    activeConfigId: 'default-openai'
+    activeConfigId: 'default-openai',
+    temperature: 0.7,
+    maxTokens: 4096
   },
   messages: [],
   connectionStatus: { state: 'idle' },
@@ -158,6 +161,9 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'CLEAR_HISTORY':
       return { ...state, history: [] }
 
+    case 'DELETE_MESSAGE':
+      return { ...state, messages: state.messages.filter(m => m.id !== action.payload) }
+
     default:
       return state
   }
@@ -256,6 +262,8 @@ export function useSettings() {
         newSettings.baseUrl = config.baseUrl
         newSettings.modelName = config.modelName
         newSettings.customHeaders = config.customHeaders
+        newSettings.temperature = config.temperature ?? 0.7
+        newSettings.maxTokens = config.maxTokens ?? 4096
       }
     }
     dispatch({ type: 'UPDATE_SETTINGS', payload: newSettings })
@@ -315,6 +323,10 @@ export function useMessages() {
     dispatch({ type: 'CLEAR_MESSAGES' })
   }
 
+  const deleteMessage = (id: string) => {
+    dispatch({ type: 'DELETE_MESSAGE', payload: id })
+  }
+
   const updateMessage = (id: string, content: string) => {
     dispatch({ type: 'UPDATE_MESSAGE_CONTENT', payload: { id, content } })
   }
@@ -323,6 +335,7 @@ export function useMessages() {
     messages: state.messages,
     addMessage,
     clearMessages,
+    deleteMessage,
     updateMessage
   }
 }

@@ -165,6 +165,35 @@ export const APIConfiguration: React.FC<APIConfigurationProps> = ({
                                     className="w-full px-3 py-2 text-xs border border-gray-100 rounded-lg dark:bg-[#141218] dark:border-gray-800"
                                 />
                             )}
+
+                            <div className="space-y-4">
+                                <div className="space-y-1">
+                                    <div className="flex justify-between">
+                                        <label className="text-[10px] font-medium text-gray-500">Temperature</label>
+                                        <span className="text-[10px] text-[#6750A4] font-bold">{(newConfig.temperature ?? 0.7).toFixed(1)}</span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="2"
+                                        step="0.1"
+                                        value={newConfig.temperature ?? 0.7}
+                                        onChange={(e) => setNewConfig({ ...newConfig, temperature: parseFloat(e.target.value) })}
+                                        className="w-full h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-[#6750A4]"
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-medium text-gray-500">Max Tokens</label>
+                                    <input
+                                        type="number"
+                                        placeholder="4096"
+                                        value={newConfig.maxTokens ?? 4096}
+                                        onChange={(e) => setNewConfig({ ...newConfig, maxTokens: parseInt(e.target.value) })}
+                                        className="w-full px-3 py-2 text-xs border border-gray-100 rounded-lg dark:bg-[#141218] dark:border-gray-800"
+                                    />
+                                </div>
+                            </div>
                         </div>
 
                         <div className="flex gap-2">
