@@ -19,6 +19,7 @@ type AppAction =
   | { type: 'UPDATE_READING_STATS'; payload: { minutes: number; articles: number } }
   | { type: 'LOAD_STATS'; payload: ReadingStats[] }
   | { type: 'LOAD_MESSAGES'; payload: Message[] }
+  | { type: 'UPDATE_MESSAGE_CONTENT'; payload: { id: string; content: string } }
 
 const initialState: AppState = {
   settings: {
@@ -109,6 +110,14 @@ function appReducer(state: AppState, action: AppAction): AppState {
 
     case 'LOAD_MESSAGES':
       return { ...state, messages: action.payload }
+
+    case 'UPDATE_MESSAGE_CONTENT':
+      return {
+        ...state,
+        messages: state.messages.map(m =>
+          m.id === action.payload.id ? { ...m, content: action.payload.content } : m
+        )
+      }
 
     default:
       return state
@@ -232,23 +241,29 @@ export function useConnection() {
 export function useMessages() {
   const { state, dispatch } = useAppContext()
 
-  const addMessage = (message: Omit<Message, 'id' | 'timestamp'>) => {
+  const addMessage = (message: Omit<Message, 'id' | 'timestamp'>): Message => {
     const newMessage: Message = {
       ...message,
       id: Date.now().toString(),
       timestamp: new Date().toISOString() as string
     }
     dispatch({ type: 'ADD_MESSAGE', payload: newMessage })
+    return newMessage
   }
 
   const clearMessages = () => {
     dispatch({ type: 'CLEAR_MESSAGES' })
   }
 
+  const updateMessage = (id: string, content: string) => {
+    dispatch({ type: 'UPDATE_MESSAGE_CONTENT', payload: { id, content } })
+  }
+
   return {
     messages: state.messages,
     addMessage,
-    clearMessages
+    clearMessages,
+    updateMessage
   }
 }
 

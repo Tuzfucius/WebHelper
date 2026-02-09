@@ -25,7 +25,8 @@ import {
   Maximize2,
   Moon,
   Sun,
-  ChevronDown
+  ChevronDown,
+  Trash2
 } from 'lucide-react'
 
 interface SidePanelProps {
@@ -37,7 +38,7 @@ type ViewMode = 'chat' | 'dashboard' | 'settings'
 
 export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose }) => {
   const { settings, updateSettings } = useSettings()
-  const { messages, addMessage } = useMessages()
+  const { messages, addMessage, updateMessage } = useMessages()
   const { dispatch } = useApp()
   const { updateStats } = useReadingStats()
   const t = useTranslation(settings.language)
@@ -45,7 +46,6 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
   const [currentView, setCurrentView] = useState<ViewMode>('chat')
   const [userInput, setUserInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
-  // Local messages state removed in favor of global state
   const [isScreenshotMode, setIsScreenshotMode] = useState(false)
   const [contextScreenshot, setContextScreenshot] = useState<ScreenshotData | undefined>(undefined)
   const [showPromptSelector, setShowPromptSelector] = useState(false)
@@ -64,9 +64,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
       if (document.visibilityState === 'visible') {
         updateStats(1, 0)
       }
-    }, 60000) // Every minute
+    }, 60000)
 
-    // Auto-fetch page content
     const fetchContent = async () => {
       try {
         const data = await sendToActiveTab('GET_PAGE_CONTENT', undefined)
@@ -174,7 +173,6 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
           )
         }
         if (part.type === 'image') {
-          // Anthropic format
           return (
             <img
               key={index}
@@ -195,7 +193,6 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
     scrollToBottom()
   }, [messages, isTyping])
 
-  // Apply Theme
   useEffect(() => {
     if (settings.theme === 'dark') {
       document.documentElement.setAttribute('data-theme', 'dark')
@@ -206,7 +203,6 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
     }
   }, [settings.theme])
 
-  // Event Listeners
   useEffect(() => {
     const removeListener = onMessage('SELECTION_TEXT', (payload) => {
       setUserInput(payload.text)
@@ -229,7 +225,6 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
     }
   }, [])
 
-
   const handleSendMessage = async () => {
     if ((!userInput.trim() && !uploadedImage && !contextScreenshot) || isTyping) return
 
@@ -239,19 +234,6 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
       return
     }
 
-    let contextData: EnhancedContextData = {
-      url: window.location.href,
-      query: userInput
-    }
-
-    if (initialContext) {
-      contextData.selectedText = initialContext
-    }
-
-    if (contextScreenshot) {
-      contextData.screenshot = contextScreenshot
-    }
-
     const userMessageContent = userInput + (uploadedImage ? ' [Image Attached]' : '') + (contextScreenshot ? ' [Screenshot Attached]' : '')
 
     addMessage({
@@ -259,19 +241,18 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
       content: userMessageContent
     })
 
-    // setMessages(prev => [...prev, userMessage]) // Removed
     setUserInput('')
-    setUploadedImage(null) // Clear upload
-    setContextScreenshot(undefined) // Clear screenshot
+    setUploadedImage(null)
+    setContextScreenshot(undefined)
     setIsTyping(true)
 
-    // Log article read if context is significantly long
+    // Log stats
     if (initialContext.length > 50) {
       try {
         chrome.storage.local.get(['lastArticleRead'], (res) => {
           const now = Date.now();
           const lastRead = Number(res.lastArticleRead || 0);
-          if (!res.lastArticleRead || (now - lastRead > 300000)) { // 5 mins
+          if (!res.lastArticleRead || (now - lastRead > 300000)) {
             updateStats(0, 1);
             chrome.storage.local.set({ lastArticleRead: now });
           }
@@ -279,71 +260,50 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
       } catch (e) { }
     }
 
-    try {
-      const currentPrompts = settings.prompts || []
-      const activePrompt = currentPrompts.find(p => p.id === settings.activePromptId)
-      let systemContent: string = 'You are a helpful AI reading assistant.'
-      if (activePrompt && activePrompt.content) {
-        systemContent = activePrompt.content
-      }
+    let assistantMsgId: string | undefined = undefined
 
-      // Retrieve context memory
+    try {
+      const activePrompt = settings.prompts?.find(p => p.id === settings.activePromptId)
+      let systemContent = activePrompt?.content || 'You are a helpful AI reading assistant.'
+
+      // Context extraction
       try {
         const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
         if (tabs[0]?.id) {
-          const pageContent = await chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_PAGE_CONTENT' }).catch(() => null)
-
-          if (pageContent) {
+          const content = await chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_PAGE_CONTENT' }).catch(() => null)
+          if (content) {
             const pageCtx = {
               url: tabs[0].url || '',
-              title: pageContent.title,
-              content: pageContent.excerpt || pageContent.content.substring(0, 500),
+              title: content.title,
+              content: content.content, // Use full content
               timestamp: Date.now()
             }
             await contextEngine.addPage(pageCtx, settings.contextLength)
-            const previousContext = await contextEngine.getRelevantContext(pageCtx.url, settings.contextLength)
 
-            if (previousContext) {
-              systemContent += `\n\nRelevant Context from previous pages:\n${previousContext}`
-            }
+            // Add CURRENT PAGE context with structured tags
+            systemContent += `\n\n[CURRENT_PAGE_CONTEXT]\nURL: ${pageCtx.url}\nTitle: ${pageCtx.title}\nFull Content:\n${pageCtx.content}\n[/CURRENT_PAGE_CONTEXT]`
+
+            const memory = await contextEngine.getRelevantContext(pageCtx.url, settings.contextLength)
+            if (memory) systemContent += `\n\n[RELEVANT_HISTORY_CONTEXT]\n${memory}\n[/RELEVANT_HISTORY_CONTEXT]`
           }
         }
-      } catch (e) {
-        console.warn('Failed to fetch page content or memory:', e)
-      }
+      } catch (e) { }
 
-      // Construct fullContent
-      let fullContent = userInput;
-      if (initialContext) {
-        fullContent = `Selected text: ${initialContext}\n\n${fullContent}`;
-      }
-      if (contextScreenshot) {
-        // In a real Vision API implementation, we would send the image URL/Base64 in the 'content' array.
-        // For this text-based demo integration:
-        fullContent = `[Screenshot included: ${contextScreenshot.imageData.length} chars]\n\n${fullContent}`;
-      }
+      let fullContent = userInput
+      if (initialContext) fullContent = `Selected: ${initialContext}\n\n${fullContent}`
+
+      let apiUserContent: any = fullContent
       if (uploadedImage) {
-        fullContent = `[Image uploaded: ${uploadedImage.length} chars]\n\n${fullContent}`;
-      }
-
-
-      let response: any = null
-      let responseContent = ''
-
-
-      // Construct User Message Content
-      let userMessageContent: any = fullContent
-
-      if (uploadedImage) {
-        if (settings.provider === 'openai' || (settings.provider === 'custom' && settings.protocol === 'openai')) {
-          userMessageContent = [
+        const isOpenAI = settings.provider === 'openai' || (settings.provider === 'custom' && settings.protocol === 'openai')
+        if (isOpenAI) {
+          apiUserContent = [
             { type: 'text', text: fullContent },
             { type: 'image_url', image_url: { url: uploadedImage } }
           ]
-        } else if (settings.provider === 'anthropic' || (settings.provider === 'custom' && settings.protocol === 'anthropic')) {
+        } else {
           const matches = uploadedImage.match(/^data:(.+);base64,(.+)$/)
           if (matches) {
-            userMessageContent = [
+            apiUserContent = [
               { type: 'text', text: fullContent },
               { type: 'image', source: { type: 'base64', media_type: matches[1], data: matches[2] } }
             ]
@@ -351,113 +311,78 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
         }
       }
 
-      // Prepare API messages array
-      const apiMessages = messages.map((m: Message) => ({ role: m.role, content: m.content }))
+      const apiHistory = messages.map(m => ({ role: m.role, content: m.content }))
+      const curAssistantMsg = addMessage({ role: 'assistant', content: '' })
+      assistantMsgId = curAssistantMsg.id
+      let accumulated = ''
 
-      if (settings.provider === 'openai') {
-        response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${settings.apiKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: settings.modelName || 'gpt-3.5-turbo',
-            messages: [
-              { role: 'system', content: systemContent },
-              ...apiMessages,
-              { role: 'user', content: userMessageContent }
-            ],
-            max_tokens: 1000
-          })
+      const isAnthropic = settings.provider === 'anthropic' || (settings.provider === 'custom' && settings.protocol === 'anthropic')
+      const baseUrl = settings.provider === 'openai' ? 'https://api.openai.com/v1' :
+        settings.provider === 'anthropic' ? 'https://api.anthropic.com/v1' :
+          settings.baseUrl.replace(/\/+$/, '')
+      const endpoint = isAnthropic ? '/messages' : '/chat/completions'
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(settings.customHeaders || {})
+      }
+      if (isAnthropic) {
+        headers['x-api-key'] = settings.apiKey
+        headers['anthropic-version'] = '2023-06-01'
+      } else {
+        headers['Authorization'] = `Bearer ${settings.apiKey}`
+      }
+
+      const response = await fetch(`${baseUrl}${endpoint}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: settings.modelName,
+          messages: isAnthropic ? [...apiHistory, { role: 'user', content: apiUserContent }] :
+            [{ role: 'system', content: systemContent }, ...apiHistory, { role: 'user', content: apiUserContent }],
+          system: isAnthropic ? systemContent : undefined,
+          max_tokens: 1000,
+          stream: true
         })
-        const data = await response.json()
-        responseContent = data.choices[0]?.message?.content || 'No response from AI'
-      } else if (settings.provider === 'anthropic') {
-        response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'x-api-key': settings.apiKey,
-            'Content-Type': 'application/json',
-            'anthropic-version': '2023-06-01'
-          },
-          body: JSON.stringify({
-            model: settings.modelName || 'claude-3-haiku-20240307',
-            max_tokens: 1000,
-            system: systemContent,
-            messages: [
-              ...messages.map((m: Message) => ({ role: m.role, content: m.content })),
-              { role: 'user' as const, content: userMessageContent }
-            ]
-          })
-        })
-        const data = await response.json()
-        responseContent = data.content[0]?.text || 'No response from AI'
-      } else if (settings.provider === 'custom') {
-        const protocol = settings.protocol || 'openai'
-        if (protocol === 'openai') {
-          const baseUrl = settings.baseUrl.replace(/\/+$/, '')
-          response = await fetch(`${baseUrl}/chat/completions`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${settings.apiKey}`,
-              'Content-Type': 'application/json',
-              ...(settings.customHeaders || {})
-            },
-            body: JSON.stringify({
-              model: settings.modelName,
-              messages: [
-                { role: 'system', content: systemContent },
-                ...apiMessages,
-                { role: 'user', content: userMessageContent }
-              ],
-              max_tokens: 1000,
-              temperature: 0.7
-            })
-          })
-          const data = await response.json()
-          responseContent = data.choices[0]?.message?.content || 'No response from AI'
-        } else {
-          const baseUrl = settings.baseUrl.replace(/\/+$/, '')
-          response = await fetch(`${baseUrl}/messages`, {
-            method: 'POST',
-            headers: {
-              'x-api-key': settings.apiKey,
-              'Content-Type': 'application/json',
-              'anthropic-version': '2023-06-01',
-              ...(settings.customHeaders || {})
-            },
-            body: JSON.stringify({
-              model: settings.modelName,
-              max_tokens: 1000,
-              system: systemContent,
-              messages: [
-                ...messages.map((m: Message) => ({ role: m.role, content: m.content })),
-                { role: 'user' as const, content: userMessageContent }
-              ]
-            })
-          })
-          const data = await response.json()
-          responseContent = data.content[0]?.text || 'No response from AI'
+      })
+
+      if (!response.ok) throw new Error(`API Error: ${response.statusText}`)
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+
+      while (reader) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value)
+        const lines = chunk.split('\n').filter(l => l.trim() !== '')
+
+        for (const line of lines) {
+          if (line.includes('[DONE]')) continue
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.replace('data: ', ''))
+              let delta = ''
+              if (!isAnthropic) {
+                delta = data.choices[0]?.delta?.content || ''
+              } else {
+                delta = data.type === 'content_block_delta' ? data.delta?.text : ''
+              }
+              if (delta) {
+                accumulated += delta
+                updateMessage(curAssistantMsg.id, accumulated)
+              }
+            } catch (e) { }
+          }
         }
       }
-
-      if (response && response.ok) {
-        const assistantContent = responseContent || 'No response from AI'
-        // Assistant message
-        addMessage({ role: 'assistant', content: assistantContent })
-        // setMessages(prev => [...prev, assistantMessage]) // Removed
-      } else {
-        throw new Error('Failed to get response from AI service')
-      }
-
     } catch (error) {
       console.error('Chat error:', error)
-      const errorMessage = {
-        role: 'assistant' as const,
-        content: `Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      const errText = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      if (assistantMsgId) {
+        updateMessage(assistantMsgId, errText)
+      } else {
+        addMessage({ role: 'assistant', content: errText })
       }
-      addMessage(errorMessage)
     } finally {
       setIsTyping(false)
     }
@@ -467,9 +392,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
     if (isScreenshotMode) {
       setIsScreenshotMode(false)
     } else {
-      const message = new CustomEvent('start-screenshot-mode', {
-        detail: { start: true }
-      })
+      const message = new CustomEvent('start-screenshot-mode', { detail: { start: true } })
       window.dispatchEvent(message)
     }
   }
@@ -478,9 +401,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
     const file = event.target.files?.[0]
     if (file) {
       const reader = new FileReader()
-      reader.onloadend = () => {
-        setUploadedImage(reader.result as string)
-      }
+      reader.onloadend = () => setUploadedImage(reader.result as string)
       reader.readAsDataURL(file)
     }
   }
@@ -492,11 +413,9 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
         const file = item.getAsFile()
         if (file) {
           const reader = new FileReader()
-          reader.onloadend = () => {
-            setUploadedImage(reader.result as string)
-          }
+          reader.onloadend = () => setUploadedImage(reader.result as string)
           reader.readAsDataURL(file)
-          event.preventDefault() // Prevent pasting the file name or binary data as text
+          event.preventDefault()
         }
       }
     }
@@ -510,217 +429,96 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
   }
 
   return (
-    <div className={`h-full flex flex-col font-sans transition-colors duration-200 ${settings.theme === 'dark' ? 'bg-[#141218] text-[#E6E1E5]' : 'bg-[#FDFCFE] text-[#1D1B20]'
-      }`}>
+    <div className={`h-full flex flex-col font-sans transition-colors duration-200 ${settings.theme === 'dark' ? 'bg-[#141218] text-[#E6E1E5]' : 'bg-[#FDFCFE] text-[#1D1B20]'}`}>
       {!isScreenshotMode && (
         <>
-          {/* Header */}
-          <header className="flex-none px-4 py-3 bg-white/80 dark:bg-[#141218]/80 backdrop-blur-md border-b border-[#E7E0EC] dark:border-[#49454F] sticky top-0 z-10 flex items-center justify-between transition-colors">
+          <header className="flex-none px-4 py-3 bg-white/80 dark:bg-[#141218]/80 backdrop-blur-md border-b border-[#E7E0EC] dark:border-[#49454F] sticky top-0 z-10 flex items-center justify-between">
             <div className="flex items-center gap-2 relative">
               <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#D0BCFF] to-[#EADDFF] flex items-center justify-center text-[#21005D]">
                 <Sparkles size={18} />
               </div>
-              <div
-                className="cursor-pointer group"
-                onClick={() => setShowPromptSelector(!showPromptSelector)}
-              >
+              <div className="cursor-pointer group" onClick={() => setShowPromptSelector(!showPromptSelector)}>
                 <h1 className="text-sm font-semibold leading-tight flex items-center gap-1 dark:text-[#E6E1E5]">
                   {activePromptName}
                   <ChevronDown size={14} className={`transition-transform duration-200 ${showPromptSelector ? 'rotate-180' : ''}`} />
                 </h1>
-                <p className="text-[10px] text-[#49454F] dark:text-[#CAC4D0] font-medium leading-none opacity-80 group-hover:opacity-100 transition-opacity">
-                  {settings.provider === 'openai' ? 'GPT-3.5' : settings.provider === 'anthropic' ? 'Claude 3' : 'Custom'}
+                <p className="text-[10px] text-[#49454F] dark:text-[#CAC4D0] font-medium leading-none opacity-80">
+                  {settings.provider}
                 </p>
               </div>
 
-              {/* Prompt Selector Dropdown */}
               <AnimatePresence>
                 {showPromptSelector && (
                   <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-[#2B2930] rounded-xl shadow-lg border border-[#E7E0EC] dark:border-[#49454F] overflow-hidden z-50 origin-top-left"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-[#2B2930] rounded-xl shadow-lg border border-[#E7E0EC] dark:border-[#49454F] overflow-hidden z-50"
                   >
-                    <div className="py-1">
-                      {(settings.prompts || []).map(p => (
-                        <button
-                          key={p.id}
-                          onClick={() => handlePromptSelect(p.id)}
-                          className={`w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between
-                            ${settings.activePromptId === p.id
-                              ? 'bg-[#EADDFF] text-[#21005D] dark:bg-[#4A4458] dark:text-[#E8DEF8]'
-                              : 'text-[#1D1B20] dark:text-[#E6E1E5] hover:bg-[#F3EDF7] dark:hover:bg-[#36343B]'
-                            }`}
-                        >
-                          {p.name}
-                          {settings.activePromptId === p.id && <Sparkles size={12} />}
-                        </button>
-                      ))}
-                    </div>
+                    {(settings.prompts || []).map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => handlePromptSelect(p.id)}
+                        className={`w-full text-left px-4 py-2 text-sm ${settings.activePromptId === p.id ? 'bg-[#EADDFF] dark:bg-[#4A4458]' : 'hover:bg-[#F3EDF7] dark:hover:bg-[#36343B]'}`}
+                      >
+                        {p.name}
+                      </button>
+                    ))}
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
             <div className="flex items-center gap-1">
-              <button
-                onClick={toggleLanguage}
-                className={`p-2 rounded-full transition-colors ${settings.theme === 'dark' ? 'hover:bg-[#49454F] text-[#CAC4D0]' : 'hover:bg-[#F3EDF7] text-[#49454F]'
-                  }`}
-                title={t.language}
-              >
-                <div className="flex items-center justify-center w-[18px] h-[18px] text-[10px] font-bold border border-current rounded">
-                  {settings.language === 'en' ? 'EN' : '中'}
-                </div>
+              <button onClick={toggleLanguage} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+                <span className="text-xs font-bold border px-1 rounded">{settings.language.toUpperCase()}</span>
               </button>
-              <button
-                onClick={toggleTheme}
-                className={`p-2 rounded-full transition-colors ${settings.theme === 'dark' ? 'hover:bg-[#49454F] text-[#CAC4D0]' : 'hover:bg-[#F3EDF7] text-[#49454F]'
-                  }`}
-                title={t.theme}
-              >
+              <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
                 {settings.theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
               </button>
-              <button
-                onClick={() => {
-                  if (confirm(t.clearChat + '?')) {
-                    dispatch({ type: 'LOAD_MESSAGES', payload: [] })
-                    chrome.storage.local.remove(['chatHistory'])
-                  }
-                }}
-                className={`p-2 rounded-full transition-colors ${settings.theme === 'dark' ? 'hover:bg-[#49454F] text-[#CAC4D0]' : 'hover:bg-[#F3EDF7] text-[#49454F]'
-                  }`}
-                title={t.clearChat}
-              >
-                <div className="relative">
-                  <MessageSquare size={18} />
-                  <X size={10} className="absolute -top-1 -right-1" />
-                </div>
+              <button onClick={() => { if (confirm(t.clearChat + '?')) { dispatch({ type: 'LOAD_MESSAGES', payload: [] }); chrome.storage.local.remove(['chatHistory']); } }} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" title={t.clearChat}>
+                <Trash2 size={18} />
               </button>
-              <button
-                onClick={onClose}
-                className={`p-2 rounded-full transition-colors ${settings.theme === 'dark' ? 'hover:bg-[#49454F] text-[#CAC4D0]' : 'hover:bg-[#F3EDF7] text-[#49454F]'
-                  }`}
-                title="Close Panel"
-              >
+              <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
                 <X size={18} />
               </button>
             </div>
           </header>
 
-          {/* Navigation Tabs */}
-          <div className="flex p-1 mx-4 mt-2 bg-[#F3EDF7] dark:bg-[#2B2930] rounded-full transition-colors">
+          <div className="flex p-1 mx-4 mt-2 bg-[#F3EDF7] dark:bg-[#2B2930] rounded-full">
             {(['chat', 'dashboard', 'settings'] as ViewMode[]).map((mode) => (
               <button
                 key={mode}
                 onClick={() => setCurrentView(mode)}
-                className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-xs font-medium rounded-full transition-all duration-200 ${currentView === mode
-                  ? 'bg-white text-[#21005D] shadow-sm dark:bg-[#4A4458] dark:text-[#E8DEF8]'
-                  : 'text-[#49454F] hover:text-[#1D1B20] dark:text-[#CAC4D0] dark:hover:text-[#E6E1E5]'
-                  }`}
+                className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-xs font-medium rounded-full ${currentView === mode ? 'bg-white shadow-sm dark:bg-[#4A4458]' : 'text-[#49454F] dark:text-[#CAC4D0]'}`}
               >
-                {mode === 'chat' && <MessageSquare size={14} />}
-                {mode === 'dashboard' && <LayoutDashboard size={14} />}
-                {mode === 'settings' && <SettingsIcon size={14} />}
                 <span className="capitalize">{t[mode]}</span>
               </button>
             ))}
           </div>
 
-          {/* Render Content */}
           <div className="flex-1 overflow-hidden relative">
             <AnimatePresence mode='wait'>
               {currentView === 'chat' && (
-                <motion.div
-                  key="chat"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  className="absolute inset-0 flex flex-col"
-                >
+                <motion.div key="chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 flex flex-col">
                   <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {/* Initial Context Bubble */}
-                    {initialContext && (
-                      <div className="bg-[#EADDFF]/50 border border-[#D0BCFF] rounded-2xl rounded-tl-none p-3 text-sm dark:bg-[#4A4458]/50 dark:border-[#49454F] dark:text-[#E6E1E5]">
-                        <div className="flex items-center gap-2 text-[#21005D] mb-1 font-medium text-xs uppercase tracking-wider dark:text-[#E8DEF8]">
-                          <Maximize2 size={12} />
-                          <span>{t.contextSelected}</span>
-                        </div>
-                        <p className="text-[#1D1B20] line-clamp-3 opacity-90 dark:text-[#E6E1E5]">{initialContext}</p>
-                      </div>
-                    )}
-
-                    {contextScreenshot && (
-                      <div className="bg-[#EADDFF]/50 border border-[#D0BCFF] rounded-2xl rounded-tl-none p-3 text-sm dark:bg-[#4A4458]/50 dark:border-[#49454F] dark:text-[#E6E1E5]">
-                        <div className="flex items-center gap-2 text-[#21005D] mb-1 font-medium text-xs uppercase tracking-wider dark:text-[#E8DEF8]">
-                          <ImageIcon size={12} />
-                          <span>{t.screenshot}</span>
-                        </div>
-                        <p className="text-[#1D1B20] opacity-90 dark:text-[#E6E1E5]">Captured Region: {Math.round(contextScreenshot.rect.width)}x{Math.round(contextScreenshot.rect.height)}</p>
-                      </div>
-                    )}
-
-                    {/* Welcome Message */}
-                    {messages.length === 0 && !initialContext && (
-                      <div className="flex flex-col items-center justify-center h-full text-center p-6 opacity-60 dark:opacity-40">
-                        <div className="w-16 h-16 bg-[#EADDFF] rounded-full flex items-center justify-center mb-4 text-[#21005D] dark:bg-[#4A4458] dark:text-[#E8DEF8]">
-                          <Bot size={32} />
-                        </div>
-                        <h3 className="text-lg font-medium text-[#1D1B20] dark:text-[#E6E1E5]">{t.howCanIHelp}</h3>
-                        <p className="text-sm text-[#49454F] mt-2 dark:text-[#CAC4D0]">{t.selectTextHint}</p>
-                      </div>
-                    )}
-
                     {messages.map((msg) => (
-                      <div
-                        key={msg.id}
-                        className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse text-right' : 'flex-row'}`}
-                      >
-                        <div className={`w-8 h-8 rounded-full flex-none flex items-center justify-center ${msg.role === 'user' ? 'bg-[#6750A4] text-white' : 'bg-[#EADDFF] text-[#21005D] dark:bg-[#4A4458] dark:text-[#E8DEF8]'
-                          }`}>
+                      <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse text-right' : 'flex-row'}`}>
+                        <div className={`w-8 h-8 rounded-full flex-none flex items-center justify-center ${msg.role === 'user' ? 'bg-[#6750A4] text-white' : 'bg-[#EADDFF] dark:bg-[#4A4458]'}`}>
                           {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
                         </div>
-                        <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm shadow-sm text-left ${msg.role === 'user'
-                          ? 'bg-[#6750A4] text-white rounded-tr-none'
-                          : 'bg-white border border-[#E7E0EC] text-[#1D1B20] rounded-tl-none dark:bg-[#2B2930] dark:border-[#49454F] dark:text-[#E6E1E5]'
-                          }`}>
-                          <div className="prose prose-sm dark:prose-invert max-w-none leading-relaxed break-words">
+                        <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm shadow-sm text-left ${msg.role === 'user' ? 'bg-[#6750A4] text-white' : 'bg-white dark:bg-[#2B2930] dark:border-[#49454F] border'}`}>
+                          <div className="prose prose-sm dark:prose-invert max-w-none break-words">
                             {renderMessageContent(msg.content)}
                           </div>
                         </div>
                       </div>
                     ))}
-                    {isTyping && (
-                      <div className="flex gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#EADDFF] flex-none flex items-center justify-center text-[#21005D] dark:bg-[#4A4458] dark:text-[#E8DEF8]">
-                          <Bot size={16} />
-                        </div>
-                        <div className="bg-white border border-[#E7E0EC] rounded-2xl rounded-tl-none px-4 py-3 shadow-sm flex gap-1 dark:bg-[#2B2930] dark:border-[#49454F]">
-                          <span className="w-1.5 h-1.5 bg-[#6750A4] rounded-full animate-bounce dark:bg-[#D0BCFF]" />
-                          <span className="w-1.5 h-1.5 bg-[#6750A4] rounded-full animate-bounce [animation-delay:0.2s] dark:bg-[#D0BCFF]" />
-                          <span className="w-1.5 h-1.5 bg-[#6750A4] rounded-full animate-bounce [animation-delay:0.4s] dark:bg-[#D0BCFF]" />
-                        </div>
-                      </div>
-                    )}
+                    {isTyping && <div className="text-xs text-gray-500 animate-pulse">AI is thinking...</div>}
                     <div ref={messagesEndRef} />
                   </div>
 
-                  {/* Input Area */}
-                  <div className="p-4 bg-white border-t border-[#E7E0EC] dark:bg-[#141218] dark:border-[#49454F]">
-
-                    {/* Image Preview */}
-                    {uploadedImage && (
-                      <div className="relative mb-2 w-fit">
-                        <img src={uploadedImage} alt="Upload" className="h-16 rounded-lg border border-[#E7E0EC] dark:border-[#49454F]" />
-                        <button
-                          onClick={() => setUploadedImage(null)}
-                          className="absolute -top-1 -right-1 bg-[#6750A4] text-white rounded-full p-0.5 shadow-sm hover:bg-[#5235a0]"
-                        >
-                          <X size={10} />
-                        </button>
-                      </div>
-                    )}
-
+                  <div className="p-4 bg-white border-t dark:bg-[#141218] dark:border-[#49454F]">
+                    {uploadedImage && <div className="relative mb-2 w-fit"><img src={uploadedImage} className="h-16 rounded" /><button onClick={() => setUploadedImage(null)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5"><X size={10} /></button></div>}
                     <div className="relative flex gap-2">
                       <textarea
                         value={userInput}
@@ -728,39 +526,12 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
                         onPaste={handlePaste}
                         onKeyDown={handleKeyDown}
                         placeholder={t.askAnything}
-                        className="w-full pl-4 pr-20 py-3 bg-[#F3EDF7] rounded-3xl text-sm focus:outline-none focus:ring-2 focus:ring-[#6750A4]/50 focus:bg-white transition-all resize-none h-[52px] dark:bg-[#2B2930] dark:text-[#E6E1E5] dark:focus:ring-[#D0BCFF]/50 dark:focus:bg-[#141218]"
-                        style={{ scrollbarWidth: 'none' }}
+                        className="w-full pl-4 pr-12 py-3 bg-[#F3EDF7] dark:bg-[#2B2930] rounded-3xl text-sm focus:outline-none h-[52px] resize-none"
                       />
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        className="hidden"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                      />
+                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
                       <div className="absolute right-2 top-1.5 flex gap-1">
-                        <button
-                          onClick={() => fileInputRef.current?.click()}
-                          className={`p-2 rounded-full transition-colors hover:bg-[#E7E0EC] text-[#49454F] dark:hover:bg-[#49454F] dark:text-[#CAC4D0]`}
-                          title="Upload Image"
-                        >
-                          <ImageIcon size={18} />
-                        </button>
-                        <button
-                          onClick={handleToggleScreenshot}
-                          className={`p-2 rounded-full transition-colors ${isScreenshotMode ? 'bg-[#EADDFF] text-[#21005D] dark:bg-[#4A4458] dark:text-[#E8DEF8]' : 'hover:bg-[#E7E0EC] text-[#49454F] dark:hover:bg-[#49454F] dark:text-[#CAC4D0]'}`}
-                          title={t.screenshot}
-                        >
-                          <Maximize2 size={18} />
-                        </button>
-                        <button
-                          onClick={handleSendMessage}
-                          disabled={(!userInput.trim() && !uploadedImage) || isTyping}
-                          className="p-2 bg-[#6750A4] text-white rounded-full hover:bg-[#5235a0] disabled:opacity-50 disabled:cursor-not-allowed transition-all dark:bg-[#D0BCFF] dark:text-[#381E72] dark:hover:bg-[#E8DEF8]"
-                          title="Send (Ctrl+Enter)"
-                        >
-                          <Send size={18} />
-                        </button>
+                        <button onClick={() => fileInputRef.current?.click()} className="p-2"><ImageIcon size={18} /></button>
+                        <button onClick={handleSendMessage} className="p-2 bg-[#6750A4] text-white rounded-full"><Send size={18} /></button>
                       </div>
                     </div>
                   </div>
@@ -768,42 +539,14 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
               )}
 
               {currentView === 'dashboard' && (
-                <motion.div
-                  key="dashboard"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="absolute inset-0 overflow-y-auto"
-                >
-                  <ReadingDashboard />
-                </motion.div>
+                <motion.div key="dashboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 overflow-y-auto"><ReadingDashboard /></motion.div>
               )}
 
               {currentView === 'settings' && (
-                <motion.div
-                  key="settings"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="absolute inset-0 overflow-y-auto p-4 space-y-6"
-                >
-                  <APIConfiguration
-                    settings={settings}
-                    onUpdate={updateSettings}
-                    connectionStatus={connectionStatus}
-                    onTestConnection={handleTestConnection}
-                    isTesting={isTestingConnection}
-                  />
-                  <PromptManager
-                    settings={settings}
-                    onUpdate={updateSettings}
-                  />
-                  <div className="pt-4 border-t border-[#E7E0EC]">
-                    <UrlManager
-                      selectedUrls={settings.selectedUrls}
-                      onUrlsChange={(urls) => updateSettings({ selectedUrls: urls })}
-                    />
-                  </div>
+                <motion.div key="settings" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 overflow-y-auto p-4 space-y-6">
+                  <APIConfiguration settings={settings} onUpdate={updateSettings} connectionStatus={connectionStatus} onTestConnection={handleTestConnection} isTesting={isTestingConnection} />
+                  <PromptManager settings={settings} onUpdate={updateSettings} />
+                  <UrlManager selectedUrls={settings.selectedUrls} onUrlsChange={(urls) => updateSettings({ selectedUrls: urls })} />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -813,10 +556,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
 
       {isScreenshotMode && (
         <ScreenshotCropper
-          onCapture={(imageData, rect) => {
-            setContextScreenshot({ imageData, rect })
-            setIsScreenshotMode(false)
-          }}
+          onCapture={(imageData, rect) => { setContextScreenshot({ imageData, rect }); setIsScreenshotMode(false); }}
           onCancel={() => setIsScreenshotMode(false)}
         />
       )}

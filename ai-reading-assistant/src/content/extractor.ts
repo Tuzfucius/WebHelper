@@ -59,7 +59,7 @@ export const extractPageContent = (): PageContent => {
     const reader = new Readability(documentClone)
     const article = reader.parse()
 
-    const rawText = article?.textContent || document.body.innerText.substring(0, 5000)
+    const rawText = article?.textContent || document.body.innerText.substring(0, 50000)
     const title = article?.title || document.title
     const excerpt = article?.excerpt || ''
 
