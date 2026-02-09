@@ -13,6 +13,7 @@ import { skillManager } from '../core/skills'
 import { AnimatePresence, motion } from 'framer-motion'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useToast } from '../components/Toast'
 import {
   MessageSquare,
   LayoutDashboard,
@@ -46,6 +47,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
   const { updateStats } = useReadingStats()
   const { history, addHistoryItem, clearHistory } = useHistory()
   const t = useTranslation(settings.language)
+  const { showToast } = useToast()
 
   const [currentView, setCurrentView] = useState<ViewMode>('chat')
   const [userInput, setUserInput] = useState('')
@@ -289,7 +291,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
     if ((!textToSend.trim() && !uploadedImage && !contextScreenshot) || isTyping) return
 
     if (!settings.apiKey) {
-      alert('Please configure your API Key in the Settings tab first.')
+      showToast('Please configure your API Key in the Settings tab first.', 'warning')
       setCurrentView('settings')
       return
     }
