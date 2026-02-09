@@ -4,6 +4,8 @@ export type MessageType =
     | 'SELECTION_TEXT'
     | 'SCREENSHOT_CAPTURED'
     | 'UPDATE_SETTINGS'
+    | 'GET_PAGE_STATS'
+    | 'GET_PAGE_CONTENT'
 
 export interface MessagePayloads {
     OPEN_SIDEPANEL: { context?: string }
@@ -11,6 +13,8 @@ export interface MessagePayloads {
     SELECTION_TEXT: { text: string }
     SCREENSHOT_CAPTURED: { imageData: string; rect: { x: number; y: number; width: number; height: number } }
     UPDATE_SETTINGS: { settings: any }
+    GET_PAGE_STATS: undefined
+    GET_PAGE_CONTENT: undefined
 }
 
 export interface ExtensionMessage<T extends MessageType> {
@@ -26,7 +30,8 @@ export const sendMessage = <T extends MessageType>(
         try {
             chrome.runtime.sendMessage({ type, payload }, (response) => {
                 if (chrome.runtime.lastError) {
-                    reject(chrome.runtime.lastError)
+                    // Ignore errors if no background listener (optional)
+                    resolve(null)
                 } else {
                     resolve(response)
                 }
@@ -34,6 +39,29 @@ export const sendMessage = <T extends MessageType>(
         } catch (error) {
             reject(error)
         }
+    })
+}
+
+export const sendToActiveTab = <T extends MessageType>(
+    type: T,
+    payload: MessagePayloads[T]
+): Promise<any> => {
+    return new Promise((resolve, reject) => {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            const activeTab = tabs[0]
+            if (!activeTab?.id) {
+                reject('No active tab found')
+                return
+            }
+            chrome.tabs.sendMessage(activeTab.id, { type, payload }, (response) => {
+                if (chrome.runtime.lastError) {
+                    console.warn('Content script not ready or not found', chrome.runtime.lastError)
+                    resolve(null)
+                } else {
+                    resolve(response)
+                }
+            })
+        })
     })
 }
 

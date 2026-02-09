@@ -27,14 +27,14 @@
   "content_scripts": [
     {
       "js": [
-        "assets/index.tsx-loader-DxJaIi32.js"
+        "assets/index.tsx-loader-CzLuJE66.js"
       ],
       "matches": [
         "<all_urls>"
       ],
       "run_at": "document_end",
       "css": [
-        "assets/index-_cz_bKSF.css"
+        "assets/index-BivBWfdm.css"
       ]
     }
   ],
@@ -45,8 +45,8 @@
       ],
       "resources": [
         "assets/*",
-        "assets/index-CO3XGGMx.js",
-        "assets/index.tsx-Dxuwe0UJ.js"
+        "assets/index-BZVrGKMj.js",
+        "assets/index.tsx-BKoOtYL9.js"
       ],
       "use_dynamic_url": false
     }

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import {
     BarChart,
     Bar,
@@ -17,23 +17,32 @@ import {
 } from 'recharts';
 import { useAppContext, useSettings } from '../../stores/AppContext';
 import { useTranslation } from '../../utils/i18n';
-import { ReadingStats, ComplexityStats } from '../../types';
-
-// Mock data for complexity (since we don't have a real analyzer yet)
-const mockComplexityData: ComplexityStats[] = [
-    { subject: 'vocabulary', A: 120, fullMark: 150 },
-    { subject: 'sentence', A: 98, fullMark: 150 },
-    { subject: 'density', A: 86, fullMark: 150 },
-    { subject: 'abstract', A: 99, fullMark: 150 },
-    { subject: 'structure', A: 85, fullMark: 150 },
-    { subject: 'sentiment', A: 65, fullMark: 150 },
-];
+import { sendToActiveTab } from '../../utils/messaging';
+import { ReadingStats, ComplexityStats, ComplexityMetrics } from '../../types';
 
 export const ReadingDashboard: React.FC = () => {
     const { state } = useAppContext();
     const { settings } = useSettings();
     const t = useTranslation(settings.language);
     const readingStats = state.readingStats;
+    const [currentMetrics, setCurrentMetrics] = useState<ComplexityMetrics | null>(null);
+
+    // Fetch complexity stats from active tab
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const stats = await sendToActiveTab('GET_PAGE_STATS', undefined);
+                if (stats) {
+                    setCurrentMetrics(stats);
+                }
+            } catch (err) {
+                console.log('Failed to fetch page stats:', err);
+            }
+        };
+
+        fetchStats();
+        // Optional: Polling or listening for tab updates could be added here
+    }, []);
 
     // Process reading stats for charts
     const weeklyData = useMemo(() => {
@@ -60,11 +69,20 @@ export const ReadingDashboard: React.FC = () => {
 
     // Format complexity data labels
     const complexityData = useMemo(() => {
-        return mockComplexityData.map(item => ({
+        const metrics = currentMetrics || { vocabulary: 0, sentence: 0, density: 0, abstract: 0 };
+        return [
+            { subject: 'vocabulary', A: metrics.vocabulary, fullMark: 100 },
+            { subject: 'sentence', A: metrics.sentence, fullMark: 100 },
+            { subject: 'density', A: metrics.density, fullMark: 100 },
+            { subject: 'abstract', A: metrics.abstract, fullMark: 100 },
+            // Structure/Sentiment not implemented yet, using placeholders or derived
+            { subject: 'structure', A: (metrics.sentence + metrics.density) / 2, fullMark: 100 },
+            { subject: 'sentiment', A: 50, fullMark: 100 },
+        ].map(item => ({
             ...item,
             subject: t.keywords[item.subject as keyof typeof t.keywords] || item.subject
         }));
-    }, [t]);
+    }, [t, currentMetrics]);
 
     const isDark = settings.theme === 'dark';
     const textColor = isDark ? '#E6E1E5' : '#1D1B20';

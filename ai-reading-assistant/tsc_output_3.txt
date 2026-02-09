@@ -1,0 +1,38 @@
+﻿src/sidepanel/SidebarPanel.tsx(404,6): error TS17008: JSX element 'div' has no corresponding closing tag.
+src/sidepanel/SidebarPanel.tsx(406,30): error TS17014: JSX fragment has no corresponding closing tag.
+src/sidepanel/SidebarPanel.tsx(598,79): error TS1003: Identifier expected.
+src/sidepanel/SidebarPanel.tsx(598,85): error TS1382: Unexpected token. Did you mean `{'>'}` or `&gt;`?
+src/sidepanel/SidebarPanel.tsx(602,93): error TS1382: Unexpected token. Did you mean `{'>'}` or `&gt;`?
+src/sidepanel/SidebarPanel.tsx(603,5): error TS1109: Expression expected.
+src/sidepanel/SidebarPanel.tsx(605,7): error TS1109: Expression expected.
+src/sidepanel/SidebarPanel.tsx(606,30): error TS1382: Unexpected token. Did you mean `{'>'}` or `&gt;`?
+src/sidepanel/SidebarPanel.tsx(610,5): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/sidepanel/SidebarPanel.tsx(611,3): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/sidepanel/SidebarPanel.tsx(613,54): error TS1382: Unexpected token. Did you mean `{'>'}` or `&gt;`?
+src/sidepanel/SidebarPanel.tsx(614,5): error TS1109: Expression expected.
+src/sidepanel/SidebarPanel.tsx(616,7): error TS1109: Expression expected.
+src/sidepanel/SidebarPanel.tsx(617,9): error TS1109: Expression expected.
+src/sidepanel/SidebarPanel.tsx(619,11): error TS1109: Expression expected.
+src/sidepanel/SidebarPanel.tsx(620,34): error TS1382: Unexpected token. Did you mean `{'>'}` or `&gt;`?
+src/sidepanel/SidebarPanel.tsx(625,9): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/sidepanel/SidebarPanel.tsx(626,7): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/sidepanel/SidebarPanel.tsx(627,5): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/sidepanel/SidebarPanel.tsx(628,3): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/sidepanel/SidebarPanel.tsx(630,55): error TS1382: Unexpected token. Did you mean `{'>'}` or `&gt;`?
+src/sidepanel/SidebarPanel.tsx(631,5): error TS1109: Expression expected.
+src/sidepanel/SidebarPanel.tsx(633,7): error TS1005: '}' expected.
+src/sidepanel/SidebarPanel.tsx(634,5): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/sidepanel/SidebarPanel.tsx(635,3): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/sidepanel/SidebarPanel.tsx(648,125): error TS1005: '}' expected.
+src/sidepanel/SidebarPanel.tsx(649,7): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/sidepanel/SidebarPanel.tsx(651,75): error TS1005: '}' expected.
+src/sidepanel/SidebarPanel.tsx(659,7): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/sidepanel/SidebarPanel.tsx(727,23): error TS17002: Expected corresponding JSX closing tag for 'HTMLInputElement'.
+src/sidepanel/SidebarPanel.tsx(728,16): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/sidepanel/SidebarPanel.tsx(769,21): error TS17002: Expected corresponding JSX closing tag for 'HTMLInputElement'.
+src/sidepanel/SidebarPanel.tsx(770,19): error TS17002: Expected corresponding JSX closing tag for 'motion.div'.
+src/sidepanel/SidebarPanel.tsx(771,9): error TS1005: ')' expected.
+src/sidepanel/SidebarPanel.tsx(771,11): error TS1003: Identifier expected.
+src/sidepanel/SidebarPanel.tsx(772,8): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/sidepanel/SidebarPanel.tsx(785,1): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/sidepanel/SidebarPanel.tsx(785,2): error TS1005: '</' expected.

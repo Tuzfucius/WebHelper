@@ -35,7 +35,7 @@ export interface PromptTemplate {
 export interface Message {
   id: string
   role: 'user' | 'assistant'
-  content: string
+  content: string | any[] // Support for multimodal content
   timestamp: string
 }
 
@@ -80,4 +80,11 @@ export interface EnhancedContextData {
   selectedText?: string
   screenshot?: ScreenshotData
   query: string
+}
+
+export interface ComplexityMetrics {
+  vocabulary: number
+  sentence: number
+  density: number
+  abstract: number
 }

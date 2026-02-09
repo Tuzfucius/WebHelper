@@ -72,10 +72,10 @@ export const PromptManager: React.FC<PromptManagerProps> = ({
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-[#1D1B20]">{t.systemPrompts}</label>
+                <label className="text-sm font-medium text-[#1D1B20] dark:text-[#E6E1E5]">{t.systemPrompts}</label>
                 <button
                     onClick={handleCreate}
-                    className="px-3 py-1 bg-[#EADDFF] text-[#21005D] text-xs font-medium rounded-full hover:bg-[#D0BCFF] transition-colors"
+                    className="px-3 py-1 bg-[#EADDFF] text-[#21005D] text-xs font-medium rounded-full hover:bg-[#D0BCFF] transition-colors dark:bg-[#4F378B] dark:text-[#EADDFF] dark:hover:bg-[#6750A4]"
                 >
                     {t.newPrompt}
                 </button>
@@ -83,31 +83,31 @@ export const PromptManager: React.FC<PromptManagerProps> = ({
 
             <div className="space-y-3">
                 {(isCreating || editingId) && (
-                    <div className="p-3 border border-[#6750A4] rounded-lg bg-[#F3EDF7] space-y-2 animate-fadeIn">
+                    <div className="p-3 border border-[#6750A4] rounded-lg bg-[#F3EDF7] space-y-2 animate-fadeIn dark:bg-[#2B2930] dark:border-[#D0BCFF]">
                         <input
                             type="text"
                             value={editName}
                             onChange={(e) => setEditName(e.target.value)}
                             placeholder={t.promptName}
-                            className="w-full px-2 py-1 text-sm bg-white rounded border border-[#79747E]/30 focus:ring-1 focus:ring-[#6750A4]"
+                            className="w-full px-2 py-1 text-sm bg-white rounded border border-[#79747E]/30 focus:ring-1 focus:ring-[#6750A4] dark:bg-[#141218] dark:border-[#49454F] dark:text-[#E6E1E5] dark:placeholder-[#79747E]"
                         />
                         <textarea
                             value={editContent}
                             onChange={(e) => setEditContent(e.target.value)}
                             placeholder={t.promptContent}
                             rows={3}
-                            className="w-full px-2 py-1 text-sm bg-white rounded border border-[#79747E]/30 focus:ring-1 focus:ring-[#6750A4] resize-none"
+                            className="w-full px-2 py-1 text-sm bg-white rounded border border-[#79747E]/30 focus:ring-1 focus:ring-[#6750A4] resize-none dark:bg-[#141218] dark:border-[#49454F] dark:text-[#E6E1E5] dark:placeholder-[#79747E]"
                         />
                         <div className="flex justify-end space-x-2">
                             <button
                                 onClick={() => { setIsCreating(false); setEditingId(null) }}
-                                className="px-2 py-1 text-xs text-[#6750A4] hover:bg-[#EADDFF]/50 rounded"
+                                className="px-2 py-1 text-xs text-[#6750A4] hover:bg-[#EADDFF]/50 rounded dark:text-[#D0BCFF] dark:hover:bg-[#4F378B]/50"
                             >
                                 {t.cancel}
                             </button>
                             <button
                                 onClick={handleSave}
-                                className="px-3 py-1 bg-[#6750A4] text-white text-xs rounded hover:bg-[#5235a0]"
+                                className="px-3 py-1 bg-[#6750A4] text-white text-xs rounded hover:bg-[#5235a0] dark:bg-[#D0BCFF] dark:text-[#381E72] dark:hover:bg-[#E8DEF8]"
                             >
                                 {t.save}
                             </button>
@@ -120,36 +120,36 @@ export const PromptManager: React.FC<PromptManagerProps> = ({
                         key={prompt.id}
                         className={`p-3 rounded-lg border transition-all hover:shadow-sm
               ${settings.activePromptId === prompt.id
-                                ? 'border-[#6750A4] bg-[#F3EDF7]'
-                                : 'border-[#79747E]/20 bg-white'
+                                ? 'border-[#6750A4] bg-[#F3EDF7] dark:bg-[#4F378B]/20 dark:border-[#D0BCFF]'
+                                : 'border-[#79747E]/20 bg-white dark:bg-[#141218] dark:border-[#49454F]'
                             }`}
                     >
                         <div className="flex justify-between items-start mb-1">
                             <div className="flex items-center space-x-2 cursor-pointer" onClick={() => handleSetActive(prompt.id)}>
                                 <div className={`w-4 h-4 rounded-full border flex items-center justify-center
-                    ${settings.activePromptId === prompt.id ? 'border-[#6750A4]' : 'border-[#79747E]'}`}>
-                                    {settings.activePromptId === prompt.id && <div className="w-2 h-2 rounded-full bg-[#6750A4]" />}
+                    ${settings.activePromptId === prompt.id ? 'border-[#6750A4] dark:border-[#D0BCFF]' : 'border-[#79747E] dark:border-[#938F99]'}`}>
+                                    {settings.activePromptId === prompt.id && <div className="w-2 h-2 rounded-full bg-[#6750A4] dark:bg-[#D0BCFF]" />}
                                 </div>
-                                <span className="font-medium text-sm text-[#1D1B20]">{prompt.name}</span>
+                                <span className="font-medium text-sm text-[#1D1B20] dark:text-[#E6E1E5]">{prompt.name}</span>
                             </div>
                             <div className="flex space-x-1">
                                 <button
                                     onClick={() => handleEdit(prompt)}
-                                    className="p-1 text-[#49454F] hover:text-[#6750A4]"
+                                    className="p-1 text-[#49454F] hover:text-[#6750A4] dark:text-[#CAC4D0] dark:hover:text-[#D0BCFF]"
                                     title={t.edit}
                                 >
                                     ✎
                                 </button>
                                 <button
                                     onClick={() => handleDelete(prompt.id)}
-                                    className="p-1 text-[#49454F] hover:text-red-600"
+                                    className="p-1 text-[#49454F] hover:text-red-600 dark:text-[#CAC4D0] dark:hover:text-[#FFB4AB]"
                                     title={t.delete}
                                 >
                                     ✕
                                 </button>
                             </div>
                         </div>
-                        <p className="text-xs text-[#49454F] line-clamp-2 pl-6">
+                        <p className="text-xs text-[#49454F] line-clamp-2 pl-6 dark:text-[#CAC4D0]">
                             {prompt.content}
                         </p>
                     </div>

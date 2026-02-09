@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useSettings, useMessages, useReadingStats } from '../stores/AppContext'
+import { useSettings, useMessages, useReadingStats, useApp } from '../stores/AppContext'
 import { ScreenshotCropper } from '../components/ScreenshotCropper'
 import { ReadingDashboard } from './components/ReadingDashboard'
 import { PromptManager } from './components/PromptManager'
 import { APIConfiguration } from './components/APIConfiguration'
 import { UrlManager } from './components/UrlManager'
-import { onMessage } from '../utils/messaging'
+import { onMessage, sendToActiveTab } from '../utils/messaging'
 import { contextEngine } from '../utils/context'
 import { useTranslation } from '../utils/i18n'
 import type { EnhancedContextData, ScreenshotData, PromptTemplate, Message } from '../types'
 import { AnimatePresence, motion } from 'framer-motion'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   MessageSquare,
   LayoutDashboard,
@@ -35,20 +37,26 @@ type ViewMode = 'chat' | 'dashboard' | 'settings'
 
 export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose }) => {
   const { settings, updateSettings } = useSettings()
-  const { addMessage } = useMessages()
+  const { messages, addMessage } = useMessages()
+  const { dispatch } = useApp()
   const { updateStats } = useReadingStats()
   const t = useTranslation(settings.language)
 
   const [currentView, setCurrentView] = useState<ViewMode>('chat')
   const [userInput, setUserInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
-  const [messages, setMessages] = useState<any[]>([])
+  // Local messages state removed in favor of global state
   const [isScreenshotMode, setIsScreenshotMode] = useState(false)
   const [contextScreenshot, setContextScreenshot] = useState<ScreenshotData | undefined>(undefined)
   const [showPromptSelector, setShowPromptSelector] = useState(false)
   const [isTestingConnection, setIsTestingConnection] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'connected' | 'error'>('idle')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Image Upload State
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null)
+  const [pageContent, setPageContent] = useState<string>('')
 
   // Track reading time
   useEffect(() => {
@@ -57,6 +65,20 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
         updateStats(1, 0)
       }
     }, 60000) // Every minute
+
+    // Auto-fetch page content
+    const fetchContent = async () => {
+      try {
+        const data = await sendToActiveTab('GET_PAGE_CONTENT', undefined)
+        if (data && data.content) {
+          setPageContent(data.content)
+        }
+      } catch (e) {
+        console.warn('Failed to fetch page content:', e)
+      }
+    }
+    fetchContent()
+
     return () => clearInterval(interval)
   }, [])
 
@@ -120,6 +142,55 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
+  const renderMessageContent = (content: string | any[]) => {
+    if (typeof content === 'string') {
+      return (
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          {content}
+        </ReactMarkdown>
+      )
+    }
+
+    if (Array.isArray(content)) {
+      return content.map((part, index) => {
+        if (part.type === 'text') {
+          return (
+            <div key={index}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {part.text}
+              </ReactMarkdown>
+            </div>
+          )
+        }
+        if (part.type === 'image_url') {
+          return (
+            <img
+              key={index}
+              src={part.image_url.url}
+              alt="Uploaded content"
+              className="max-w-full rounded-lg my-2"
+              style={{ maxHeight: '200px' }}
+            />
+          )
+        }
+        if (part.type === 'image') {
+          // Anthropic format
+          return (
+            <img
+              key={index}
+              src={`data:${part.source.media_type};base64,${part.source.data}`}
+              alt="Uploaded content"
+              className="max-w-full rounded-lg my-2"
+              style={{ maxHeight: '200px' }}
+            />
+          )
+        }
+        return null
+      })
+    }
+    return null
+  }
+
   useEffect(() => {
     scrollToBottom()
   }, [messages, isTyping])
@@ -135,22 +206,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
     }
   }, [settings.theme])
 
-  // Load chat history
-  useEffect(() => {
-    chrome.storage.local.get(['chatHistory'], (result) => {
-      if (result.chatHistory) {
-        setMessages((result.chatHistory as any[]) || [])
-      }
-    })
-  }, [])
-
-  // Save chat history
-  useEffect(() => {
-    if (messages.length > 0) {
-      chrome.storage.local.set({ chatHistory: messages })
-    }
-  }, [messages])
-
+  // Event Listeners
   useEffect(() => {
     const removeListener = onMessage('SELECTION_TEXT', (payload) => {
       setUserInput(payload.text)
@@ -173,8 +229,9 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
     }
   }, [])
 
+
   const handleSendMessage = async () => {
-    if (!userInput.trim() || isTyping) return
+    if ((!userInput.trim() && !uploadedImage && !contextScreenshot) || isTyping) return
 
     if (!settings.apiKey) {
       alert('Please configure your API Key in the Settings tab first.')
@@ -195,15 +252,17 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
       contextData.screenshot = contextScreenshot
     }
 
-    const userMessage = {
-      id: (Date.now() + 1).toString(),
-      role: 'user' as const,
-      content: userInput,
-      timestamp: new Date().toISOString()
-    }
+    const userMessageContent = userInput + (uploadedImage ? ' [Image Attached]' : '') + (contextScreenshot ? ' [Screenshot Attached]' : '')
 
-    setMessages(prev => [...prev, userMessage])
+    addMessage({
+      role: 'user',
+      content: userMessageContent
+    })
+
+    // setMessages(prev => [...prev, userMessage]) // Removed
     setUserInput('')
+    setUploadedImage(null) // Clear upload
+    setContextScreenshot(undefined) // Clear screenshot
     setIsTyping(true)
 
     // Log article read if context is significantly long
@@ -223,7 +282,10 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
     try {
       const currentPrompts = settings.prompts || []
       const activePrompt = currentPrompts.find(p => p.id === settings.activePromptId)
-      let systemContent = activePrompt?.content || 'You are a helpful AI reading assistant.'
+      let systemContent: string = 'You are a helpful AI reading assistant.'
+      if (activePrompt && activePrompt.content) {
+        systemContent = activePrompt.content
+      }
 
       // Retrieve context memory
       try {
@@ -256,21 +318,42 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
         fullContent = `Selected text: ${initialContext}\n\n${fullContent}`;
       }
       if (contextScreenshot) {
+        // In a real Vision API implementation, we would send the image URL/Base64 in the 'content' array.
+        // For this text-based demo integration:
         fullContent = `[Screenshot included: ${contextScreenshot.imageData.length} chars]\n\n${fullContent}`;
       }
+      if (uploadedImage) {
+        fullContent = `[Image uploaded: ${uploadedImage.length} chars]\n\n${fullContent}`;
+      }
 
-      const apiMessages = [
-        ...messages.map(m => ({
-          role: m.role,
-          content: m.content
-        })),
-        { role: 'user' as const, content: fullContent }
-      ]
 
       let response: any = null
       let responseContent = ''
 
-      // API Logic
+
+      // Construct User Message Content
+      let userMessageContent: any = fullContent
+
+      if (uploadedImage) {
+        if (settings.provider === 'openai' || (settings.provider === 'custom' && settings.protocol === 'openai')) {
+          userMessageContent = [
+            { type: 'text', text: fullContent },
+            { type: 'image_url', image_url: { url: uploadedImage } }
+          ]
+        } else if (settings.provider === 'anthropic' || (settings.provider === 'custom' && settings.protocol === 'anthropic')) {
+          const matches = uploadedImage.match(/^data:(.+);base64,(.+)$/)
+          if (matches) {
+            userMessageContent = [
+              { type: 'text', text: fullContent },
+              { type: 'image', source: { type: 'base64', media_type: matches[1], data: matches[2] } }
+            ]
+          }
+        }
+      }
+
+      // Prepare API messages array
+      const apiMessages = messages.map((m: Message) => ({ role: m.role, content: m.content }))
+
       if (settings.provider === 'openai') {
         response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
@@ -280,9 +363,12 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
           },
           body: JSON.stringify({
             model: settings.modelName || 'gpt-3.5-turbo',
-            messages: apiMessages,
-            max_tokens: 1000,
-            temperature: 0.7
+            messages: [
+              { role: 'system', content: systemContent },
+              ...apiMessages,
+              { role: 'user', content: userMessageContent }
+            ],
+            max_tokens: 1000
           })
         })
         const data = await response.json()
@@ -300,8 +386,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
             max_tokens: 1000,
             system: systemContent,
             messages: [
-              ...messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content })),
-              { role: 'user' as const, content: fullContent }
+              ...messages.map((m: Message) => ({ role: m.role, content: m.content })),
+              { role: 'user' as const, content: userMessageContent }
             ]
           })
         })
@@ -320,7 +406,11 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
             },
             body: JSON.stringify({
               model: settings.modelName,
-              messages: apiMessages,
+              messages: [
+                { role: 'system', content: systemContent },
+                ...apiMessages,
+                { role: 'user', content: userMessageContent }
+              ],
               max_tokens: 1000,
               temperature: 0.7
             })
@@ -342,8 +432,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
               max_tokens: 1000,
               system: systemContent,
               messages: [
-                ...messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content })),
-                { role: 'user' as const, content: fullContent }
+                ...messages.map((m: Message) => ({ role: m.role, content: m.content })),
+                { role: 'user' as const, content: userMessageContent }
               ]
             })
           })
@@ -354,14 +444,9 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
 
       if (response && response.ok) {
         const assistantContent = responseContent || 'No response from AI'
-        const assistantMessage = {
-          id: (Date.now() + 2).toString(),
-          role: 'assistant' as const,
-          content: assistantContent,
-          timestamp: new Date().toISOString()
-        }
-        setMessages(prev => [...prev, assistantMessage])
-        addMessage({ role: 'assistant' as const, content: assistantContent })
+        // Assistant message
+        addMessage({ role: 'assistant', content: assistantContent })
+        // setMessages(prev => [...prev, assistantMessage]) // Removed
       } else {
         throw new Error('Failed to get response from AI service')
       }
@@ -369,12 +454,10 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
     } catch (error) {
       console.error('Chat error:', error)
       const errorMessage = {
-        id: (Date.now() + 3).toString(),
         role: 'assistant' as const,
-        content: `Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        timestamp: new Date().toISOString()
+        content: `Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}`
       }
-      setMessages(prev => [...prev, errorMessage])
+      addMessage(errorMessage)
     } finally {
       setIsTyping(false)
     }
@@ -388,6 +471,41 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
         detail: { start: true }
       })
       window.dispatchEvent(message)
+    }
+  }
+
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setUploadedImage(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handlePaste = (event: React.ClipboardEvent) => {
+    const items = event.clipboardData.items
+    for (const item of items) {
+      if (item.type.indexOf('image') !== -1) {
+        const file = item.getAsFile()
+        if (file) {
+          const reader = new FileReader()
+          reader.onloadend = () => {
+            setUploadedImage(reader.result as string)
+          }
+          reader.readAsDataURL(file)
+          event.preventDefault() // Prevent pasting the file name or binary data as text
+        }
+      }
+    }
+  }
+
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      event.preventDefault()
+      handleSendMessage()
     }
   }
 
@@ -466,7 +584,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
               <button
                 onClick={() => {
                   if (confirm(t.clearChat + '?')) {
-                    setMessages([])
+                    dispatch({ type: 'LOAD_MESSAGES', payload: [] })
                     chrome.storage.local.remove(['chatHistory'])
                   }
                 }}
@@ -566,7 +684,9 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
                           ? 'bg-[#6750A4] text-white rounded-tr-none'
                           : 'bg-white border border-[#E7E0EC] text-[#1D1B20] rounded-tl-none dark:bg-[#2B2930] dark:border-[#49454F] dark:text-[#E6E1E5]'
                           }`}>
-                          <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
+                          <div className="prose prose-sm dark:prose-invert max-w-none leading-relaxed break-words">
+                            {renderMessageContent(msg.content)}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -587,26 +707,57 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
 
                   {/* Input Area */}
                   <div className="p-4 bg-white border-t border-[#E7E0EC] dark:bg-[#141218] dark:border-[#49454F]">
+
+                    {/* Image Preview */}
+                    {uploadedImage && (
+                      <div className="relative mb-2 w-fit">
+                        <img src={uploadedImage} alt="Upload" className="h-16 rounded-lg border border-[#E7E0EC] dark:border-[#49454F]" />
+                        <button
+                          onClick={() => setUploadedImage(null)}
+                          className="absolute -top-1 -right-1 bg-[#6750A4] text-white rounded-full p-0.5 shadow-sm hover:bg-[#5235a0]"
+                        >
+                          <X size={10} />
+                        </button>
+                      </div>
+                    )}
+
                     <div className="relative flex gap-2">
                       <textarea
                         value={userInput}
                         onChange={(e) => setUserInput(e.target.value)}
+                        onPaste={handlePaste}
+                        onKeyDown={handleKeyDown}
                         placeholder={t.askAnything}
-                        className="w-full pl-4 pr-12 py-3 bg-[#F3EDF7] rounded-3xl text-sm focus:outline-none focus:ring-2 focus:ring-[#6750A4]/50 focus:bg-white transition-all resize-none h-[52px] dark:bg-[#2B2930] dark:text-[#E6E1E5] dark:focus:ring-[#D0BCFF]/50 dark:focus:bg-[#141218]"
+                        className="w-full pl-4 pr-20 py-3 bg-[#F3EDF7] rounded-3xl text-sm focus:outline-none focus:ring-2 focus:ring-[#6750A4]/50 focus:bg-white transition-all resize-none h-[52px] dark:bg-[#2B2930] dark:text-[#E6E1E5] dark:focus:ring-[#D0BCFF]/50 dark:focus:bg-[#141218]"
                         style={{ scrollbarWidth: 'none' }}
                       />
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                      />
                       <div className="absolute right-2 top-1.5 flex gap-1">
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          className={`p-2 rounded-full transition-colors hover:bg-[#E7E0EC] text-[#49454F] dark:hover:bg-[#49454F] dark:text-[#CAC4D0]`}
+                          title="Upload Image"
+                        >
+                          <ImageIcon size={18} />
+                        </button>
                         <button
                           onClick={handleToggleScreenshot}
                           className={`p-2 rounded-full transition-colors ${isScreenshotMode ? 'bg-[#EADDFF] text-[#21005D] dark:bg-[#4A4458] dark:text-[#E8DEF8]' : 'hover:bg-[#E7E0EC] text-[#49454F] dark:hover:bg-[#49454F] dark:text-[#CAC4D0]'}`}
                           title={t.screenshot}
                         >
-                          <ImageIcon size={18} />
+                          <Maximize2 size={18} />
                         </button>
                         <button
                           onClick={handleSendMessage}
-                          disabled={!userInput.trim() || isTyping}
+                          disabled={(!userInput.trim() && !uploadedImage) || isTyping}
                           className="p-2 bg-[#6750A4] text-white rounded-full hover:bg-[#5235a0] disabled:opacity-50 disabled:cursor-not-allowed transition-all dark:bg-[#D0BCFF] dark:text-[#381E72] dark:hover:bg-[#E8DEF8]"
+                          title="Send (Ctrl+Enter)"
                         >
                           <Send size={18} />
                         </button>

@@ -18,6 +18,7 @@ type AppAction =
   | { type: 'SAVE_SETTINGS' }
   | { type: 'UPDATE_READING_STATS'; payload: { minutes: number; articles: number } }
   | { type: 'LOAD_STATS'; payload: ReadingStats[] }
+  | { type: 'LOAD_MESSAGES'; payload: Message[] }
 
 const initialState: AppState = {
   settings: {
@@ -106,6 +107,9 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'LOAD_STATS':
       return { ...state, readingStats: action.payload }
 
+    case 'LOAD_MESSAGES':
+      return { ...state, messages: action.payload }
+
     default:
       return state
   }
@@ -156,6 +160,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     saveStats()
   }, [state.readingStats])
+
+  // Load messages
+  useEffect(() => {
+    const loadMessages = async () => {
+      try {
+        const result = await (chrome as any).storage.local.get(['chatHistory'])
+        if (result.chatHistory) {
+          dispatch({ type: 'LOAD_MESSAGES', payload: result.chatHistory })
+        }
+      } catch (error) {
+        console.error('Failed to load messages:', error)
+      }
+    }
+    loadMessages()
+  }, [])
+
+  // Save messages
+  useEffect(() => {
+    const saveMessages = async () => {
+      try {
+        await (chrome as any).storage.local.set({ chatHistory: state.messages })
+      } catch (error) {
+        console.error('Failed to save messages:', error)
+      }
+    }
+    saveMessages()
+  }, [state.messages])
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>
@@ -233,3 +264,4 @@ export function useReadingStats() {
     updateStats
   }
 }
+export const useApp = useAppContext

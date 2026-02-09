@@ -15,8 +15,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'GET_PAGE_CONTENT') {
         const data = extractPageContent()
         sendResponse(data)
+    } else if (message.type === 'GET_PAGE_STATS') {
+        const data = extractPageContent()
+        sendResponse(data.stats)
     }
-    return undefined // Sync response (or async if we returned true)
+    return undefined // Sync response
 })
 
 // Create a container for our extension
