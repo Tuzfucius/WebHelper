@@ -11,21 +11,44 @@
   ],
   "host_permissions": [
     "https://*.openai.com/",
-    "https://*.anthropic.com/"
+    "https://*.anthropic.com/",
+    "*://*/*"
   ],
   "background": {
-    "service_worker": "background.js",
+    "service_worker": "service-worker-loader.js",
     "type": "module"
   },
   "side_panel": {
-    "default_path": "sidepanel.html"
+    "default_path": "src/sidepanel/index.html"
   },
   "action": {
     "default_title": "AI Reading Assistant"
   },
-  "icons": {
-    "16": "icon16.png",
-    "48": "icon48.png", 
-    "128": "icon128.png"
-  }
+  "content_scripts": [
+    {
+      "js": [
+        "assets/index.tsx-loader-DxJaIi32.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ],
+      "run_at": "document_end",
+      "css": [
+        "assets/index-_cz_bKSF.css"
+      ]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "resources": [
+        "assets/*",
+        "assets/index-CO3XGGMx.js",
+        "assets/index.tsx-Dxuwe0UJ.js"
+      ],
+      "use_dynamic_url": false
+    }
+  ]
 }

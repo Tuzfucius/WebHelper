@@ -1,0 +1,102 @@
+export const translations = {
+    en: {
+        dashboard: 'Dashboard',
+        chat: 'Chat',
+        settings: 'Settings',
+        readingTime: 'Reading Time (Minutes)',
+        contentComplexity: 'Content Complexity',
+        readingHistory: 'Reading History',
+        keywords: {
+            vocabulary: 'Vocabulary',
+            sentence: 'Sentence Length',
+            density: 'Density',
+            abstract: 'Abstractness',
+            structure: 'Structure',
+            sentiment: 'Sentiment'
+        },
+        contextSelected: 'Context Selected',
+        screenshot: 'Screenshot',
+        howCanIHelp: 'How can I help you?',
+        selectTextHint: 'Select text on the page or type below to start chatting.',
+        askAnything: 'Ask anything...',
+
+        // Settings & Prompts
+        provider: 'Provider',
+        protocol: 'Protocol Format',
+        baseUrl: 'Base URL',
+        modelName: 'Model Name',
+        apiKey: 'API Key',
+        testConnection: 'Test Connection',
+        testing: 'Testing...',
+        test: 'Test',
+        connected: '✓ Connected',
+        connectionFailed: '✗ Connection failed',
+        contextMemory: 'Context Memory (Pages)',
+        contextHint: 'Include summaries from the last {n} visited pages.',
+        systemPrompts: 'System Prompts',
+        newPrompt: '+ New Prompt',
+        promptName: 'Prompt Name',
+        promptContent: 'System prompt content...',
+        save: 'Save',
+        cancel: 'Cancel',
+        edit: 'Edit',
+        delete: 'Delete',
+        deletePromptConfirm: 'Are you sure you want to delete this prompt?',
+        language: 'Language',
+        theme: 'Theme',
+        clearChat: 'Clear Chat'
+    },
+    zh: {
+        dashboard: '仪表盘',
+        chat: '对话',
+        settings: '设置',
+        readingTime: '阅读时长 (分钟)',
+        contentComplexity: '内容复杂度',
+        readingHistory: '阅读历史',
+        keywords: {
+            vocabulary: '词汇量',
+            sentence: '句长',
+            density: '密度',
+            abstract: '抽象度',
+            structure: '结构',
+            sentiment: '情感'
+        },
+        contextSelected: '已选上下文',
+        screenshot: '截图',
+        howCanIHelp: '有什么可以帮您？',
+        selectTextHint: '在页面上选择文本或在下方输入以开始对话。',
+        askAnything: '随便问问...',
+
+        // Settings & Prompts
+        provider: '模型提供商',
+        protocol: '协议格式',
+        baseUrl: 'API 地址 (Base URL)',
+        modelName: '模型名称',
+        apiKey: 'API 密钥',
+        testConnection: '测试连接',
+        testing: '测试中...',
+        test: '测试',
+        connected: '✓ 已连接',
+        connectionFailed: '✗ 连接失败',
+        contextMemory: '上下文记忆 (页数)',
+        contextHint: '包含最近 {n} 个访问页面的摘要。',
+        systemPrompts: '系统提示词',
+        newPrompt: '+ 新建提示词',
+        promptName: '提示词名称',
+        promptContent: '输入系统提示词内容...',
+        save: '保存',
+        cancel: '取消',
+        edit: '编辑',
+        delete: '删除',
+        deletePromptConfirm: '确定要删除此提示词吗？',
+        language: '语言',
+        theme: '主题',
+        clearChat: '清空对话'
+    }
+};
+
+export type Language = 'en' | 'zh';
+
+export const useTranslation = (lang: Language) => {
+    return translations[lang] || translations.en;
+};

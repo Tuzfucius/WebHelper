@@ -1,13 +1,12 @@
+import { onMessage } from '../utils/messaging'
+
 // Service Worker for handling background tasks
-// @ts-ignore - chrome API exists in extension context
 console.log('AI Reading Assistant Service Worker loaded')
 
-// @ts-ignore - chrome API exists in extension context
 chrome.runtime.onInstalled.addListener((details: any) => {
   console.log('AI Reading Assistant installed:', details)
-  
+
   // Initialize default settings
-  // @ts-ignore - chrome.storage exists
   chrome.storage.local.set({
     settings: {
       provider: 'openai',
@@ -18,29 +17,28 @@ chrome.runtime.onInstalled.addListener((details: any) => {
   })
 })
 
-// @ts-ignore - chrome API exists in extension context
+// Use strict message typing
 chrome.runtime.onMessage.addListener((message: any, sender: any, sendResponse: any) => {
-  console.log('Message received in service worker:', message)
-  
-  switch (message.type) {
-    case 'open-sidepanel':
-      // @ts-ignore - chrome.sidePanel exists
-      chrome.sidePanel.open({ windowId: sender.tab?.windowId })
-      sendResponse({ success: true })
-      break
-      
-    case 'get-tab-info':
-      sendResponse({
-        url: sender.tab?.url || '',
-        title: sender.tab?.title || ''
-      })
-      break
-      
-    default:
-      sendResponse({ success: false, error: 'Unknown message type' })
+  if (message.type === 'OPEN_SIDEPANEL') {
+    // Open the side panel for the current window
+    if (sender.tab?.windowId) {
+      chrome.sidePanel.open({ windowId: sender.tab.windowId })
+        .then(() => {
+          // Forward the message to the sidepanel after it opens
+          setTimeout(() => {
+            chrome.runtime.sendMessage({
+              type: 'OPEN_SIDEPANEL',
+              payload: message.payload
+            }).catch(() => {
+              // Ignore errors if sidepanel is not yet ready/listening
+            })
+          }, 500)
+        })
+        .catch(console.error)
+    }
+    sendResponse({ success: true })
   }
-  
-  return true // Indicates async response
+  return true
 })
 
 // Keep service worker alive

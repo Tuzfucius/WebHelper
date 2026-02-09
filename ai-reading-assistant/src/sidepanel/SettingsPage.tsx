@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react'
-import { ProviderSelector } from './components/ProviderSelector'
-import { ApiKeyInput } from './components/ApiKeyInput'
+import React from 'react'
+import { APIConfiguration } from './components/APIConfiguration'
 import { UrlManager } from './components/UrlManager'
+import { PromptManager } from './components/PromptManager'
 import { useSettings, useConnection } from '../stores/AppContext'
 import { useConnectionTester } from '../hooks/useConnectionTester'
 
@@ -10,43 +10,20 @@ export const SettingsPage: React.FC = () => {
   const { connectionStatus, setConnectionStatus } = useConnection()
   const { isTesting, testConnection } = useConnectionTester()
 
-  const handleProviderChange = (provider: 'openai' | 'anthropic' | 'custom') => {
-    updateSettings({ provider })
-    setConnectionStatus({ state: 'idle' }) // Reset connection status
-  }
-
-  const handleApiKeyChange = (apiKey: string) => {
-    updateSettings({ apiKey })
-    setConnectionStatus({ state: 'idle' }) // Reset connection status
-  }
-
-  const handleBaseUrlChange = (baseUrl: string) => {
-    updateSettings({ baseUrl })
-  }
+  /* Callbacks handled by APIConfiguration passing partial updates */
 
   const handleUrlChange = (selectedUrls: string[]) => {
     updateSettings({ selectedUrls })
   }
 
   const handleTestConnection = async () => {
-    if (!settings.apiKey.trim()) {
-      setConnectionStatus({ 
-        state: 'error', 
-        error: 'Please enter an API key first' 
-      })
-      return
-    }
-
-    const result = await testConnection(
-      settings.provider,
-      settings.apiKey,
-      settings.baseUrl
-    )
+    // APIConfiguration uses settings state directly from hook
+    const result = await testConnection(settings)
 
     if (!result.success && result.error) {
-      setConnectionStatus({ 
-        state: 'error', 
-        error: result.error 
+      setConnectionStatus({
+        state: 'error',
+        error: result.error
       })
     }
   }
@@ -63,7 +40,7 @@ export const SettingsPage: React.FC = () => {
           </svg>
         </div>
       </div>
-      
+
       {/* Privacy Notice */}
       <div className="mx-4 mt-4 p-3 bg-[#EADDFF] rounded-lg border border-[#6750A4]/20">
         <div className="flex items-start space-x-2">
@@ -73,54 +50,29 @@ export const SettingsPage: React.FC = () => {
           <div className="text-sm">
             <p className="font-medium text-[#6750A4] mb-1">Privacy Notice</p>
             <p className="text-[#49454F]">
-              Your API keys are stored <strong>locally</strong> on your device and never sent to external servers. 
+              Your API keys are stored <strong>locally</strong> on your device and never sent to external servers.
               We cannot access your keys or use them on your behalf.
             </p>
           </div>
         </div>
       </div>
-      
+
       {/* Settings Content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         <div className="space-y-6">
-          {/* Provider Selection */}
-          <ProviderSelector
-            selectedProvider={settings.provider}
-            onProviderChange={handleProviderChange}
-          />
-          
-          {/* API Key Input */}
-          <ApiKeyInput
-            value={settings.apiKey}
-            onChange={handleApiKeyChange}
-            provider={settings.provider}
+          <APIConfiguration
+            settings={settings}
+            onUpdate={updateSettings}
+            connectionStatus={connectionStatus.state}
             onTestConnection={handleTestConnection}
             isTesting={isTesting}
-            connectionStatus={connectionStatus.state}
-            error={connectionStatus.state === 'error' ? connectionStatus.error : undefined}
           />
-          
-          {/* Base URL Input (for custom provider) */}
-          {settings.provider === 'custom' && (
-            <div className="space-y-3">
-              <label className="text-sm font-medium text-[#1D1B20]">
-                Base URL
-              </label>
-              <input
-                type="url"
-                value={settings.baseUrl}
-                onChange={(e) => handleBaseUrlChange(e.target.value)}
-                placeholder="https://your-api-endpoint.com"
-                className="w-full px-4 py-3 border border-[#79747E]/30 rounded-lg 
-                           bg-white text-[#1D1B20] placeholder-[#79747E]/50
-                           focus:outline-none focus:ring-2 focus:ring-[#6750A4]"
-              />
-              <p className="text-xs text-[#49454F]">
-                Enter the base URL for your custom API endpoint
-              </p>
-            </div>
-          )}
-          
+
+          <PromptManager
+            settings={settings}
+            onUpdate={updateSettings}
+          />
+
           {/* URL Manager */}
           <UrlManager
             selectedUrls={settings.selectedUrls}
@@ -128,21 +80,20 @@ export const SettingsPage: React.FC = () => {
           />
         </div>
       </div>
-      
+
       {/* Status Footer */}
       <div className="p-4 border-t border-[#79747E]/20">
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${
-              connectionStatus.state === 'connected' ? 'bg-green-500' :
+            <div className={`w-2 h-2 rounded-full ${connectionStatus.state === 'connected' ? 'bg-green-500' :
               connectionStatus.state === 'error' ? 'bg-red-500' :
-              connectionStatus.state === 'testing' ? 'bg-yellow-500 animate-pulse' :
-              'bg-gray-400'
-            }`}></div>
+                connectionStatus.state === 'testing' ? 'bg-yellow-500 animate-pulse' :
+                  'bg-gray-400'
+              }`}></div>
             <span className={
               connectionStatus.state === 'connected' ? 'text-green-600' :
-              connectionStatus.state === 'error' ? 'text-red-600' :
-              'text-[#49454F]'
+                connectionStatus.state === 'error' ? 'text-red-600' :
+                  'text-[#49454F]'
             }>
               {connectionStatus.state === 'connected' && '✓ Connected to AI service'}
               {connectionStatus.state === 'error' && `✗ ${connectionStatus.error}`}

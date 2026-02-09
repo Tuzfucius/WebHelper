@@ -14,9 +14,9 @@ export const FloatingButton: React.FC<FloatingButtonProps> = ({ onClick }) => {
   useEffect(() => {
     // 检查是否应该显示按钮
     const checkVisibility = () => {
-      const shouldHide = window.scrollY > 100 || 
-                       (document.body.scrollHeight - window.innerHeight - window.scrollY) < 200
-      
+      const shouldHide = window.scrollY > 100 ||
+        (document.body.scrollHeight - window.innerHeight - window.scrollY) < 200
+
       if (shouldHide && state !== 'hidden') {
         setState('hidden')
       } else if (!shouldHide && state === 'hidden') {
@@ -27,7 +27,7 @@ export const FloatingButton: React.FC<FloatingButtonProps> = ({ onClick }) => {
     // 监听滚动和视口变化
     window.addEventListener('scroll', checkVisibility, { passive: true })
     window.addEventListener('resize', checkVisibility)
-    
+
     // 初始检查
     checkVisibility()
 
@@ -49,42 +49,38 @@ export const FloatingButton: React.FC<FloatingButtonProps> = ({ onClick }) => {
         const rect = buttonRef.current.getBoundingClientRect()
         const viewportWidth = window.innerWidth
         const viewportHeight = window.innerHeight
-        
+
         // 确保按钮不会超出视口边界
         const safeX = Math.max(8, Math.min(viewportWidth - rect.width - 8, position.x))
         const safeY = Math.max(8, Math.min(viewportHeight - rect.height - 8, position.y))
-        
+
         setPosition({ x: safeX, y: safeY })
       }
     }
 
     updatePosition()
     window.addEventListener('resize', updatePosition)
-    
+
     return () => window.removeEventListener('resize', updatePosition)
   }, [isVisible, position, state])
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    
+
     // 添加点击动画反馈
     setState('active')
     setTimeout(() => setState('hover'), 150)
-    
-    // 发送打开侧边栏的消息
-    const message = new CustomEvent('side-panel-toggle', {
-      detail: { open: true }
-    })
-    window.dispatchEvent(message)
-    
+
+    // Callback handled by parent
+
     onClick()
   }
 
   const handleMouseEnter = () => {
     if (state !== 'hidden') {
       setState('hover')
-      
+
       // 清除隐藏超时
       if (hideTimeoutRef.current) {
         clearTimeout(hideTimeoutRef.current)
@@ -148,14 +144,14 @@ export const FloatingButton: React.FC<FloatingButtonProps> = ({ onClick }) => {
     <>
       {/* 智能显示指示器 */}
       {state === 'hidden' && (
-        <div 
+        <div
           className="fixed right-4 bottom-4 z-[99999] animate-pulse"
           onMouseEnter={() => setState('hover')}
         >
           <div className="w-2 h-2 bg-[#6750A4] rounded-full"></div>
         </div>
       )}
-      
+
       {/* 主要浮动按钮 */}
       <button
         ref={buttonRef}
@@ -175,23 +171,23 @@ export const FloatingButton: React.FC<FloatingButtonProps> = ({ onClick }) => {
         aria-label="Ask AI assistant"
       >
         {/* AI Icon - Animated lightning bolt */}
-        <svg 
+        <svg
           className={`w-6 h-6 text-white transition-transform duration-200 
             ${state === 'active' ? 'scale-90 rotate-12' : 'scale-100'}
             ${state === 'hover' ? 'animate-pulse-soft' : ''}`}
-          fill="none" 
-          stroke="currentColor" 
+          fill="none"
+          stroke="currentColor"
           viewBox="0 0 24 24"
           xmlns="http://www.w3.org/2000/svg"
         >
-          <path 
-            strokeLinecap="round" 
-            strokeLinejoin="round" 
-            strokeWidth={2.5} 
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2.5}
             d="M13 10V3L4 14h7v7l9-11h-7z"
           />
         </svg>
-        
+
         {/* 悬停时显示的工具提示 */}
         {state === 'hover' && (
           <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 

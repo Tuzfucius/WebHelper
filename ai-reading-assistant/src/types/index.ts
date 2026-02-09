@@ -1,9 +1,35 @@
 // Type definitions for the application
 export interface Settings {
   provider: 'openai' | 'anthropic' | 'custom'
+  protocol: 'openai' | 'anthropic'
   apiKey: string
   baseUrl: string
+  modelName: string
+  customHeaders: Record<string, string>
   selectedUrls: string[]
+  contextLength: number
+  prompts: PromptTemplate[]
+  activePromptId: string
+  theme?: 'light' | 'dark' | 'system'
+  language: 'en' | 'zh'
+}
+
+export interface ReadingStats {
+  date: string // YYYY-MM-DD
+  minutes: number
+  articles: number
+}
+
+export interface ComplexityStats {
+  subject: string
+  A: number
+  fullMark: number
+}
+
+export interface PromptTemplate {
+  id: string
+  name: string
+  content: string
 }
 
 export interface Message {
