@@ -1,267 +1,96 @@
-# AI Reading Assistant - 项目完成总结
+# AI Reading Assistant (AI 阅读助手) 🚀
 
-## 🎉 Phase 2 完成！交互入口开发成功
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
+![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
 
-### ✅ 完成状态
-
-#### **1. 增强FloatingButton交互效果** ✅
-- 智能滚动隐藏/显示逻辑
-- 自适应视口边界
-- 5秒智能自动隐藏
-- 多层次动画状态
-- 工具提示和点击反馈
-- 响应式位置计算
-
-#### **2. 完善SelectionPopover定位算法** ✅
-- 智能边界检测和避让
-- 多种显示模式（上下方/左侧/右侧）
-- 防止遮挡重要内容
-- 冲突处理（点击浮窗不触发选区取消）
-- 装饰性多层阴影效果
-- 文本预览功能（最多100字符 + ...）
-
-#### **3. 实现侧边栏消息传递** ✅
-- Content Script消息通信机制
-- 上下文数据自动传递
-- 实时聊天界面
-- 多种AI提供商支持
-- 消息历史记录
-- 打字指示器动画
-- 错误处理和用户反馈
-
-#### **4. 添加动画和微交互** ✅
-- MD3标准动画系统
-- 脉冲、弹跳、滑入滑出效果
-- 高对比度模式支持
-- 无障碍访问优化
-- 响应式过渡效果
-
-#### **5. 测试兼容性和优化** ✅
-- TypeScript类型安全
-- 自动化构建流程
-- 包大小优化（~170KB）
-- CSS压缩和Gzip优化
+**AI Reading Assistant** 是一款基于 Chrome 扩展程序的轻量级 AI 阅读辅助工具，旨在为学术阅读和内容消费提供沉浸式的 AI 交互体验。项目遵循 **Material Design 3** 规范，提供精致的视觉效果和丝滑的交互体验。
 
 ---
 
-### 📊 最终构建结果
+## ✨ 核心特性
 
-| 指标 | 数值 |
-|------|------|
-| 总包大小 | ~171KB |
-| Gzip压缩后 | ~53KB |
-| CSS大小 | ~25KB (5KB Gzip) |
-| 构建时间 | 1.32秒 |
-| TypeScript错误 | 0个 |
-| 代码模块 | 40个 |
-
----
-
-### 🎯 核心功能实现
-
-#### **交互系统**:
-1. **FloatingButton**: 智能悬浮按钮
-   - 自动隐藏/显示逻辑
-   - 自适应视口边界
-   - 5秒不活动自动隐藏
-   - 平滑的动画过渡
-
-2. **SelectionPopover**: 划词浮窗
-   - 智能定位算法
-   - 边界自动检测和调整
-   - 多种显示模式（上下方/左侧/右侧）
-   - 冲突处理和自动隐藏
-
-3. **SidePanel**: 主聊天界面
-   - 消息历史记录
-   - 实时打字效果
-   - API提供商切换
-   - 上下文传递和显示
-
-#### **API集成**:
-- ✅ OpenAI GPT-3.5-Turbo集成
-- ✅ Anthropic Claude-3-Haiku集成
-- ✅ Custom API端点支持
-- ✅ 安全的API密钥管理
-- ✅ 连接测试和状态反馈
-
-#### **数据管理**:
-- ✅ Chrome Storage自动持久化
-- ✅ 用户设置管理
-- ✅ 消息历史记录
-- ✅ URL白名单支持
-- ✅ 类型安全的状态管理
-
-#### **UI/UX设计**:
-- ✅ MD3设计系统完整应用
-- ✅ 响应式布局
-- ✅ 无障碍访问优化
-- ✅ 高对比度模式支持
-- ✅ 流畅的动画和过渡
+- **🎯 划词即达**: 智能选区弹出窗，快速对选中内容进行总结、翻译或解释。
+- **💬 深度对话**: 全功能的侧边栏聊天界面，支持 Markdown 渲染、模型切换及打字机效果。
+- **🛠️ Skills & MCP 集成**: 内置扩展插件系统，AI 可调用各种 Skills（如网页搜索、页面交互）来辅助任务。
+- **⌨️ 自定义快捷键**: 支持 `Enter` 或 `Ctrl+Enter` 发送消息，适配不同用户的输入习惯。
+- **📝 消息高级操作**: 支持对消息进行**原位编辑**、**快速复制**、**一键重新生成**和**删除**。
+- **🌓 深色模式支持**: 适配 Material 3 主题系统，高对比度色彩确保深色模式下的阅读清晰度。
+- **🎨 毛玻璃效果**: 侧边栏和悬浮菜单应用了精致的 Glassmorphism 设计，交互感更现代。
 
 ---
 
-### 🛠️ 技术亮点
+## 🛠️ 技术栈
 
-1. **性能优化**:
-   - 轻量化包大小（~170KB）
-   - 代码分割和懒加载
-   - CSS压缩和Gzip优化
-   - 内存泄漏防护
-
-2. **用户体验**:
-   - 智能的交互反馈
-   - 平滑的动画过渡
-   - 无缝的网页集成
-   - 实时状态更新
-
-3. **代码质量**:
-   - TypeScript类型安全
-   - 模块化组件架构
-   - 优雅的错误处理
-   - 可维护的代码结构
+- **前端框架**: React 18 + TypeScript
+- **构建工具**: Vite + CRXJS (Chrome Extension Plugin)
+- **视觉/动画**: Tailwind CSS + Framer Motion + Lucide Icons
+- **内容处理**: @mozilla/readability + DOMPurify
+- **AI 渲染**: React Markdown + Remark GFM
+- **设计规范**: Google Material Design 3 (MD3)
 
 ---
 
-### 📦 项目结构
+## 📦 项目结构
 
-```
+```bash
 ai-reading-assistant/
 ├── src/
-│   ├── background/          # Service Worker
-│   │   └── service-worker.ts
-│   ├── content/            # Content Scripts
-│   │   ├── FloatingButton.tsx
-│   │   └── SelectionPopover.tsx
-│   ├── sidepanel/          # Side Panel UI
-│   │   ├── SettingsPage.tsx
-│   │   ├── components/
-│   │   │   ├── ApiKeyInput.tsx
-│   │   │   ├── ProviderSelector.tsx
-│   │   │   └── UrlManager.tsx
-│   │   └── sidebarPanel.tsx
-│   ├── stores/             # State Management
-│   │   └── AppContext.tsx
-│   ├── hooks/              # Custom Hooks
-│   │   └── useConnectionTester.ts
-│   ├── components/          # Shared Components
-│   │   └── ui/
-│   │       └── index.tsx
-│   ├── types/              # TypeScript Types
-│   │   └── index.ts
-│   ├── utils/              # Utility Functions
-│   ├── App.tsx             # Main App Component
-│   ├── main.tsx            # Entry Point
-│   └── index.css            # Global Styles
-├── public/                 # Static Assets
-│   ├── manifest.json
-│   ├── icons.ts
-│   └── (icon files)
-├── dist/                  # Build Output
-├── package.json
-├── tsconfig.json
-├── tailwind.config.js
-├── vite.config.ts
-├── postcss.config.js
-└── README.md
+│   ├── core/
+│   │   └── skills/          # Skills 插件系统架构 & MCP 桥接
+│   ├── sidepanel/          # 侧边栏 UI (主交互界面)
+│   │   ├── components/     # 设置、快捷键、Skills 等组件
+│   ├── content/            # 注入页面的脚本 (悬浮按钮、浮窗)
+│   ├── stores/             # 全局状态管理 (AppContext/Chrome Storage)
+│   └── index.css           # 混合 MD3 变量的主题样式表
+├── public/                 # 插件清单 (manifest.json) 和静态资产
+└── dist/                   # 构建产物
 ```
 
 ---
 
-### 🚀 下一步计划
+## 🚀 快速上手
 
-Phase 2已完成，Phase 3将涉及：
+### 1. 克隆与安装
+```bash
+git clone https://github.com/your-username/ai-reading-assistant.git
+cd ai-reading-assistant
+npm install
+```
 
-#### **Phase 3: 截图与上下文引擎** (预计2小时)
-- 基础截图功能
-- 简单的Canvas裁剪
-- 上下文数据构建
-- 图片Base64处理
+### 2. 开发模式
+```bash
+npm run dev
+```
+运行后，Vite 会生成 `dist` 目录。在 Chrome 扩展管理器中开启“开发者模式”，选择“加载已解压的扩展程序”，并指向该 `dist` 文件夹。
 
-#### **Phase 4: 聊天与渲染核心** (预计2.5小时)
-- Markdown渲染器
-- LaTeX公式支持
-- 代码高亮
-- 懒加载Mermaid图表
-- 表格横向滚动
-
-#### **Phase 5: 集成与优化** (预计1.5小时)
-- 端到端功能测试
-- 性能优化
-- 错误处理完善
-- 用户体验优化
+### 3. 正式打包
+```bash
+npm run build
+```
 
 ---
 
-### 📋 使用说明
+## 🧩 Skills 与工具扩展
 
-1. **开发模式**:
-   ```bash
-   cd ai-reading-assistant
-   npm run dev
-   ```
+项目内置了 SkillManager，允许开发者轻松扩展 AI 的能力。
 
-2. **构建生产版本**:
-   ```bash
-   npm run build
-   ```
-
-3. **加载到Chrome**:
-   - 打开Chrome扩展管理页面
-   - 启用开发者模式
-   - 加载unpacked的dist目录
-   - 测试功能
-
-4. **首次使用**:
-   - 点击扩展图标打开侧边栏
-   - 在设置中配置API提供商和密钥
-   - 测试连接是否成功
-   - 选中文本自动触发AI助手
-   - 开始对话！
+- **Skill 注册**: 在 `src/core/skills/index.ts` 中注册新工具。
+- **可视化管理**: 在设置页面底部的 **Skills & 集成** 面板中，用户可以实时查看当前 AI 可用的所有技能及其参数架构。
+- **MCP 兼容**: 采用了符合 Model Context Protocol 规范的定义方式，便于未来扩展。
 
 ---
 
-### 🎨 设计理念
+## 🎨 设计理念
 
-**Material Design 3**:
-- Helpful: 提供直观的帮助功能
-- Organic: 自然的交互和动画
-- Rhythm: 一致的视觉节奏和间距
-- Focus: 清晰的信息层次和重点
-
-**用户体验原则**:
-- 轻量化: 保持插件体积小、性能高
-- 集成化: 无缝融入现有网页体验
-- 隐私优先: 本地存储API密钥，不发送到外部
-- 响应式: 适应不同屏幕和设备
+我们也致力于每一个像素的打磨：
+- **Helpful**: 提供直观的帮助功能，不打断阅读流。
+- **Organic**: 自然的动画过渡，消除组件的突兀感。
+- **Focus**: 清晰的信息层次，文字清晰度经过深色模式严格走查。
 
 ---
 
-### 📞 技术债务
+## 📄 开源协议
 
-1. **待优化项**:
-   - CSS百分号语法修复
-   - 更多无障碍功能
-   - 深色模式支持
-   - 更多语言支持
-
-2. **待完善功能**:
-   - 语音输入支持
-   - 导出对话历史
-   - 自定义提示词模板
-   - 高级搜索功能
-
----
-
-### ✨ 项目成功总结
-
-AI Reading Assistant Phase 2成功完成！我们建立了一个完整的交互入口系统，实现了无缝的网页集成，创建了流畅的用户体验，并为后续功能打下了坚实的基础。
-
-**核心成就**:
-- ✅ 智能交互系统（FAB + 划词浮窗）
-- ✅ 完整的设置界面和API集成
-- ✅ 流畅的侧边栏聊天界面
-- ✅ Material Design 3设计系统
-- ✅ 轻量化和高性能实现
-
-**准备进入Phase 3: 截图与上下文引擎！** 🚀
+MIT License. 欢迎随时提交 Issue 或 PR！
