@@ -13,7 +13,8 @@
     "https://api.openai.com/",
     "https://api.anthropic.com/",
     "https://*.openai.com/",
-    "https://*.anthropic.com/"
+    "https://*.anthropic.com/",
+    "https://*.exa.ai/"
   ],
   "background": {
     "service_worker": "src/background/service-worker.ts",
