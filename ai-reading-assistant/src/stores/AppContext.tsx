@@ -1,12 +1,13 @@
 // Context for managing global application state
 import React, { createContext, useContext, useReducer, useEffect } from 'react'
-import { Settings, Message, ConnectionStatus, ReadingStats } from '../types'
+import { Settings, Message, ConnectionStatus, ReadingStats, HistoryItem, APIConfig } from '../types'
 
 interface AppState {
   settings: Settings
   messages: Message[]
   connectionStatus: ConnectionStatus
   readingStats: ReadingStats[]
+  history: HistoryItem[]
 }
 
 type AppAction =
@@ -20,6 +21,22 @@ type AppAction =
   | { type: 'LOAD_STATS'; payload: ReadingStats[] }
   | { type: 'LOAD_MESSAGES'; payload: Message[] }
   | { type: 'UPDATE_MESSAGE_CONTENT'; payload: { id: string; content: string } }
+  | { type: 'LOAD_HISTORY'; payload: HistoryItem[] }
+  | { type: 'ADD_HISTORY_ITEM'; payload: HistoryItem }
+  | { type: 'CLEAR_HISTORY' }
+
+const defaultAPIConfigs: APIConfig[] = [
+  {
+    id: 'default-openai',
+    name: 'OpenAI Default',
+    provider: 'openai',
+    protocol: 'openai',
+    apiKey: '',
+    baseUrl: '',
+    modelName: 'gpt-3.5-turbo',
+    customHeaders: {}
+  }
+]
 
 const initialState: AppState = {
   settings: {
@@ -38,11 +55,15 @@ const initialState: AppState = {
     ],
     activePromptId: 'default',
     theme: 'light',
-    language: 'zh'
+    language: 'zh',
+    incognitoMode: false,
+    apiConfigs: defaultAPIConfigs,
+    activeConfigId: 'default-openai'
   },
   messages: [],
   connectionStatus: { state: 'idle' },
-  readingStats: []
+  readingStats: [],
+  history: []
 }
 
 const AppContext = createContext<{
@@ -54,6 +75,10 @@ function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case 'UPDATE_SETTINGS':
       const newSettings = { ...state.settings, ...action.payload }
+
+      // If activeConfigId changed, but payload didn't update the specific fields (provider, etc),
+      // we might need to sync them if we are switching configs via ID.
+      // However, usually we update the fields directly or update the configs list.
       return { ...state, settings: newSettings }
 
     case 'SET_CONNECTION_STATUS':
@@ -74,7 +99,9 @@ function appReducer(state: AppState, action: AppAction): AppState {
           prompts: action.payload.prompts || state.settings.prompts,
           activePromptId: action.payload.activePromptId || state.settings.activePromptId,
           theme: action.payload.theme || state.settings.theme,
-          language: action.payload.language || state.settings.language
+          language: action.payload.language || state.settings.language,
+          apiConfigs: action.payload.apiConfigs || state.settings.apiConfigs,
+          activeConfigId: action.payload.activeConfigId || state.settings.activeConfigId
         }
       }
 
@@ -99,7 +126,6 @@ function appReducer(state: AppState, action: AppAction): AppState {
           articles: action.payload.articles
         })
       }
-      // Keep only last 30 days
       if (newStats.length > 30) {
         newStats = newStats.slice(newStats.length - 30)
       }
@@ -119,6 +145,19 @@ function appReducer(state: AppState, action: AppAction): AppState {
         )
       }
 
+    case 'LOAD_HISTORY':
+      return { ...state, history: action.payload }
+
+    case 'ADD_HISTORY_ITEM':
+      // Prevent duplicates
+      if (state.history.some(h => h.url === action.payload.url)) {
+        return state
+      }
+      return { ...state, history: [action.payload, ...state.history].slice(0, 100) }
+
+    case 'CLEAR_HISTORY':
+      return { ...state, history: [] }
+
     default:
       return state
   }
@@ -127,16 +166,40 @@ function appReducer(state: AppState, action: AppAction): AppState {
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState)
 
-  // Load settings and stats from chrome.storage on mount
+  // Load everything from chrome.storage on mount
   useEffect(() => {
     const loadData = async () => {
       try {
-        const result = await (chrome as any).storage.local.get(['settings', 'readingStats'])
+        const result = await (chrome as any).storage.local.get(['settings', 'readingStats', 'chatHistory', 'readingHistory'])
+
+        // Settings migration and loading
         if (result.settings) {
-          dispatch({ type: 'LOAD_SETTINGS', payload: result.settings })
+          const loadedSettings = result.settings as Settings
+          // Migration: if apiConfigs doesn't exist but we have single config data
+          if (!loadedSettings.apiConfigs && (loadedSettings as any).apiKey) {
+            loadedSettings.apiConfigs = [{
+              id: 'initial-config',
+              name: 'Imported Config',
+              provider: loadedSettings.provider,
+              protocol: loadedSettings.protocol,
+              apiKey: loadedSettings.apiKey,
+              baseUrl: loadedSettings.baseUrl,
+              modelName: loadedSettings.modelName,
+              customHeaders: loadedSettings.customHeaders || {}
+            }]
+            loadedSettings.activeConfigId = 'initial-config'
+          }
+          dispatch({ type: 'LOAD_SETTINGS', payload: loadedSettings })
         }
+
         if (result.readingStats) {
           dispatch({ type: 'LOAD_STATS', payload: result.readingStats })
+        }
+        if (result.chatHistory) {
+          dispatch({ type: 'LOAD_MESSAGES', payload: result.chatHistory })
+        }
+        if (result.readingHistory) {
+          dispatch({ type: 'LOAD_HISTORY', payload: result.readingHistory })
         }
       } catch (error) {
         console.error('Failed to load data:', error)
@@ -146,56 +209,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     loadData()
   }, [])
 
-  // Save settings
+  // Persistent saving effects
   useEffect(() => {
-    const saveSettings = async () => {
-      try {
-        await (chrome as any).storage.local.set({ settings: state.settings })
-      } catch (error) {
-        console.error('Failed to save settings:', error)
-      }
-    }
-    saveSettings()
+    chrome.storage.local.set({ settings: state.settings })
   }, [state.settings])
 
-  // Save stats
   useEffect(() => {
-    const saveStats = async () => {
-      try {
-        await (chrome as any).storage.local.set({ readingStats: state.readingStats })
-      } catch (error) {
-        console.error('Failed to save stats:', error)
-      }
-    }
-    saveStats()
+    chrome.storage.local.set({ readingStats: state.readingStats })
   }, [state.readingStats])
 
-  // Load messages
   useEffect(() => {
-    const loadMessages = async () => {
-      try {
-        const result = await (chrome as any).storage.local.get(['chatHistory'])
-        if (result.chatHistory) {
-          dispatch({ type: 'LOAD_MESSAGES', payload: result.chatHistory })
-        }
-      } catch (error) {
-        console.error('Failed to load messages:', error)
-      }
-    }
-    loadMessages()
-  }, [])
-
-  // Save messages
-  useEffect(() => {
-    const saveMessages = async () => {
-      try {
-        await (chrome as any).storage.local.set({ chatHistory: state.messages })
-      } catch (error) {
-        console.error('Failed to save messages:', error)
-      }
-    }
-    saveMessages()
+    chrome.storage.local.set({ chatHistory: state.messages })
   }, [state.messages])
+
+  useEffect(() => {
+    chrome.storage.local.set({ readingHistory: state.history })
+  }, [state.history])
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>
@@ -216,12 +245,43 @@ export function useSettings() {
   const { state, dispatch } = useAppContext()
 
   const updateSettings = (newSettings: Partial<Settings>) => {
+    // If we're updating activeConfigId, we should also sync the top-level provider/apiKey etc
+    // for backward compatibility or simple access in components.
+    if (newSettings.activeConfigId && state.settings.apiConfigs) {
+      const config = state.settings.apiConfigs.find(c => c.id === newSettings.activeConfigId)
+      if (config) {
+        newSettings.provider = config.provider
+        newSettings.protocol = config.protocol
+        newSettings.apiKey = config.apiKey
+        newSettings.baseUrl = config.baseUrl
+        newSettings.modelName = config.modelName
+        newSettings.customHeaders = config.customHeaders
+      }
+    }
     dispatch({ type: 'UPDATE_SETTINGS', payload: newSettings })
+  }
+
+  const addAPIConfig = (config: Omit<APIConfig, 'id'>) => {
+    const newConfig: APIConfig = { ...config, id: Date.now().toString() }
+    const newConfigs = [...(state.settings.apiConfigs || []), newConfig]
+    updateSettings({ apiConfigs: newConfigs })
+    return newConfig
+  }
+
+  const deleteAPIConfig = (id: string) => {
+    const newConfigs = state.settings.apiConfigs.filter(c => c.id !== id)
+    updateSettings({ apiConfigs: newConfigs })
+    // Fallback if active deleted
+    if (state.settings.activeConfigId === id && newConfigs.length > 0) {
+      updateSettings({ activeConfigId: newConfigs[0].id })
+    }
   }
 
   return {
     settings: state.settings,
-    updateSettings
+    updateSettings,
+    addAPIConfig,
+    deleteAPIConfig
   }
 }
 
@@ -245,7 +305,7 @@ export function useMessages() {
     const newMessage: Message = {
       ...message,
       id: Date.now().toString(),
-      timestamp: new Date().toISOString() as string
+      timestamp: new Date().toISOString()
     }
     dispatch({ type: 'ADD_MESSAGE', payload: newMessage })
     return newMessage
@@ -279,4 +339,29 @@ export function useReadingStats() {
     updateStats
   }
 }
+
+export function useHistory() {
+  const { state, dispatch } = useAppContext()
+
+  const addHistoryItem = (item: Omit<HistoryItem, 'id' | 'timestamp'>) => {
+    if (state.settings.incognitoMode) return
+    const newItem: HistoryItem = {
+      ...item,
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString()
+    }
+    dispatch({ type: 'ADD_HISTORY_ITEM', payload: newItem })
+  }
+
+  const clearHistory = () => {
+    dispatch({ type: 'CLEAR_HISTORY' })
+  }
+
+  return {
+    history: state.history || [],
+    addHistoryItem,
+    clearHistory
+  }
+}
+
 export const useApp = useAppContext

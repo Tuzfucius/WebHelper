@@ -12,7 +12,10 @@ chrome.runtime.onInstalled.addListener((details: any) => {
       provider: 'openai',
       apiKey: '',
       baseUrl: '',
-      selectedUrls: []
+      selectedUrls: [],
+      apiConfigs: [],
+      activeConfigId: '',
+      incognitoMode: false
     }
   })
 })

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useSettings, useMessages, useReadingStats, useApp } from '../stores/AppContext'
+import { useSettings, useMessages, useReadingStats, useApp, useHistory } from '../stores/AppContext'
 import { ScreenshotCropper } from '../components/ScreenshotCropper'
 import { ReadingDashboard } from './components/ReadingDashboard'
 import { PromptManager } from './components/PromptManager'
@@ -34,13 +34,14 @@ interface SidePanelProps {
   onClose: () => void
 }
 
-type ViewMode = 'chat' | 'dashboard' | 'settings'
+type ViewMode = 'chat' | 'dashboard' | 'settings' | 'history'
 
 export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose }) => {
   const { settings, updateSettings } = useSettings()
   const { messages, addMessage, updateMessage } = useMessages()
   const { dispatch } = useApp()
   const { updateStats } = useReadingStats()
+  const { history, addHistoryItem, clearHistory } = useHistory()
   const t = useTranslation(settings.language)
 
   const [currentView, setCurrentView] = useState<ViewMode>('chat')
@@ -68,18 +69,29 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
 
     const fetchContent = async () => {
       try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
+        const activeTab = tabs[0]
+
         const data = await sendToActiveTab('GET_PAGE_CONTENT', undefined)
         if (data && data.content) {
           setPageContent(data.content)
+
+          // Record history if activeTab exists and not incognito
+          if (activeTab && activeTab.url && activeTab.title && !settings.incognitoMode) {
+            addHistoryItem({
+              url: activeTab.url,
+              title: activeTab.title
+            })
+          }
         }
       } catch (e) {
-        console.warn('Failed to fetch page content:', e)
+        console.warn('Failed to fetch page content/record history:', e)
       }
     }
     fetchContent()
 
     return () => clearInterval(interval)
-  }, [])
+  }, [settings.incognitoMode])
 
   const handleTestConnection = async () => {
     setIsTestingConnection(true)
@@ -484,12 +496,12 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
             </div>
           </header>
 
-          <div className="flex p-1 mx-4 mt-2 bg-[#F3EDF7] dark:bg-[#2B2930] rounded-full">
-            {(['chat', 'dashboard', 'settings'] as ViewMode[]).map((mode) => (
+          <div className="flex p-1 mx-4 mt-2 bg-[#F3EDF7] dark:bg-[#2B2930] rounded-full overflow-x-auto no-scrollbar">
+            {(['chat', 'dashboard', 'history', 'settings'] as ViewMode[]).map((mode) => (
               <button
                 key={mode}
                 onClick={() => setCurrentView(mode)}
-                className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-xs font-medium rounded-full ${currentView === mode ? 'bg-white shadow-sm dark:bg-[#4A4458]' : 'text-[#49454F] dark:text-[#CAC4D0]'}`}
+                className={`flex-1 flex items-center justify-center gap-2 py-1.5 px-3 text-xs font-medium rounded-full whitespace-nowrap ${currentView === mode ? 'bg-white shadow-sm dark:bg-[#4A4458]' : 'text-[#49454F] dark:text-[#CAC4D0]'}`}
               >
                 <span className="capitalize">{t[mode]}</span>
               </button>
@@ -500,6 +512,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
             <AnimatePresence mode='wait'>
               {currentView === 'chat' && (
                 <motion.div key="chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 flex flex-col">
+                  {/* (existing chat content) */}
                   <div className="flex-1 overflow-y-auto p-4 space-y-4">
                     {messages.map((msg) => (
                       <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse text-right' : 'flex-row'}`}>
@@ -534,6 +547,37 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
                         <button onClick={handleSendMessage} className="p-2 bg-[#6750A4] text-white rounded-full"><Send size={18} /></button>
                       </div>
                     </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {currentView === 'history' && (
+                <motion.div key="history" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 overflow-y-auto p-4 flex flex-col">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-lg font-bold">{t.readingHistory}</h2>
+                    <button
+                      onClick={() => { if (confirm(t.delete + '?')) clearHistory() }}
+                      className="text-xs text-red-500 hover:bg-red-50 p-1 px-2 rounded"
+                    >
+                      {t.clearChat}
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {history.length === 0 ? (
+                      <div className="text-center py-10 text-gray-400 text-sm">No history yet</div>
+                    ) : (
+                      history.map((item) => (
+                        <div
+                          key={item.id}
+                          onClick={() => chrome.tabs.update({ url: item.url })}
+                          className="p-3 bg-white dark:bg-[#2B2930] border border-[#E7E0EC] dark:border-[#49454F] rounded-xl hover:shadow-md transition-shadow cursor-pointer group"
+                        >
+                          <div className="font-medium text-sm mb-1 group-hover:text-[#6750A4] line-clamp-1">{item.title}</div>
+                          <div className="text-[10px] text-gray-500 line-clamp-1 break-all">{item.url}</div>
+                          <div className="text-[10px] text-gray-400 mt-2">{new Date(item.timestamp).toLocaleString()}</div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </motion.div>
               )}

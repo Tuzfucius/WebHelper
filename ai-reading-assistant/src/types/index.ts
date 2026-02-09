@@ -1,4 +1,14 @@
-// Type definitions for the application
+export interface APIConfig {
+  id: string
+  name: string
+  provider: 'openai' | 'anthropic' | 'custom'
+  protocol: 'openai' | 'anthropic'
+  apiKey: string
+  baseUrl: string
+  modelName: string
+  customHeaders: Record<string, string>
+}
+
 export interface Settings {
   provider: 'openai' | 'anthropic' | 'custom'
   protocol: 'openai' | 'anthropic'
@@ -12,6 +22,17 @@ export interface Settings {
   activePromptId: string
   theme?: 'light' | 'dark' | 'system'
   language: 'en' | 'zh'
+  // New fields for Multi-API and History
+  incognitoMode: boolean
+  apiConfigs: APIConfig[]
+  activeConfigId: string
+}
+
+export interface HistoryItem {
+  id: string
+  url: string
+  title: string
+  timestamp: string
 }
 
 export interface ReadingStats {
