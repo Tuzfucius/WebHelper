@@ -35,7 +35,7 @@ export class SkillManager {
 
 export const skillManager = new SkillManager();
 
-// Import and register all skills
+// 导入并注册所有 skills
 import './web_search'
 import './translate'
 import './analyze_page'

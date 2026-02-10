@@ -1,7 +1,7 @@
-// Utils 导出
 export * from './errorHandler'
 export * from './webSearch'
 export * from './contentAnalyzer'
-export { sendMessage, MessageHandler, MessageType } from './messaging'
-export { t, setLanguage, getLanguage } from './i18n'
-export { extractContextData } from './context'
+export { sendMessage, MessageType } from './messaging'
+export type { MessageHandler } from './messaging'
+export type { translations, Language, useTranslation } from './i18n'
+export type { extractContextData } from './context'

@@ -7,6 +7,29 @@ export interface PageContext {
     timestamp: number
 }
 
+export const extractContextData = async (currentUrl: string): Promise<{
+    url: string
+    title: string
+    content: string
+}> => {
+    const memory = await contextEngine.getMemory()
+    const page = memory.find(p => p.url === currentUrl)
+    
+    if (page) {
+        return {
+            url: page.url,
+            title: page.title,
+            content: page.content
+        }
+    }
+    
+    return {
+        url: currentUrl,
+        title: document.title,
+        content: ''
+    }
+}
+
 const STORAGE_KEY = 'page_memory'
 
 export const contextEngine = {

@@ -1,3 +1,9 @@
+export type MessageHandler = (
+    payload: any,
+    sender: chrome.runtime.MessageSender,
+    sendResponse: (response?: any) => void
+) => void
+
 export type MessageType =
     | 'OPEN_SIDEPANEL'
     | 'GET_TAB_INFO'
