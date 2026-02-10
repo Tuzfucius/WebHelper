@@ -20,28 +20,39 @@ chrome.runtime.onInstalled.addListener((details: any) => {
   })
 })
 
-// Use strict message typing
+// Web Search handler (for future MCP integration)
 chrome.runtime.onMessage.addListener((message: any, sender: any, sendResponse: any) => {
+  // Handle OPEN_SIDEPANEL
   if (message.type === 'OPEN_SIDEPANEL') {
-    // Open the side panel for the current window
     if (sender.tab?.windowId) {
       chrome.sidePanel.open({ windowId: sender.tab.windowId })
         .then(() => {
-          // Forward the message to the sidepanel after it opens
           setTimeout(() => {
             chrome.runtime.sendMessage({
               type: 'OPEN_SIDEPANEL',
               payload: message.payload
-            }).catch(() => {
-              // Ignore errors if sidepanel is not yet ready/listening
-            })
+            }).catch(() => {})
           }, 500)
         })
         .catch(console.error)
     }
     sendResponse({ success: true })
+    return true
   }
-  return true
+  
+  // Handle WEB_SEARCH (placeholder for future MCP integration)
+  if (message.type === 'WEB_SEARCH') {
+    // TODO: Integrate with exa-web-search-free MCP
+    // For now, return a placeholder response
+    sendResponse({
+      success: false,
+      error: 'Web search requires MCP integration. Please configure exa-web-search-free.',
+      results: []
+    })
+    return true
+  }
+  
+  return false
 })
 
 // Keep service worker alive
