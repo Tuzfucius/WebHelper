@@ -12,7 +12,8 @@ interface HeaderProps {
 }
 
 export function Header({ showPromptSelector, setShowPromptSelector, onClose, onClearChat, activePromptName }: HeaderProps) {
-  const { settings, updateSettings, prompts } = useSettings()
+  const { settings, updateSettings } = useSettings()
+  const prompts = settings.prompts || []
   const t = (key: string) => {
     const translations: Record<string, string> = {
       clearChat: 'Clear Chat',
@@ -83,7 +84,7 @@ export function Header({ showPromptSelector, setShowPromptSelector, onClose, onC
         <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
           {settings.theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
         </button>
-        <button onClick={onClearChat} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" title={t.clearChat}>
+        <button onClick={onClearChat} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" title={t('clearChat')}>
           <Trash2 size={18} />
         </button>
         <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">

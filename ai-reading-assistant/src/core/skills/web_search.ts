@@ -1,7 +1,7 @@
 /**
  * Web Search Skill - 使用 exa-web-search-free 进行网络搜索
  */
-import { skillManager, Skill } from './base'
+import { skillManager } from './base'
 import { web_search } from '../../utils/webSearch'
 
 skillManager.registerSkill({
@@ -10,8 +10,8 @@ skillManager.registerSkill({
   parameters: {
     type: 'object',
     properties: {
-      query: { 
-        type: 'string', 
+      query: {
+        type: 'string',
         description: '搜索查询关键词，建议使用英文以获得更好的结果'
       },
       numResults: {
@@ -43,4 +43,4 @@ skillManager.registerSkill({
       }
     }
   }
-} as Skill)
+})

@@ -1,6 +1,6 @@
 // Context for managing global application state
 import React, { createContext, useContext, useReducer, useEffect } from 'react'
-import { Settings, Message, ConnectionStatus, ReadingStats, HistoryItem, APIConfig } from '../types'
+import { Settings, Message, ConnectionStatus, ReadingStats, HistoryItem, APIConfig, MCPServerConfig } from '../types'
 
 interface AppState {
   settings: Settings
@@ -64,7 +64,9 @@ const initialState: AppState = {
     maxTokens: 4096,
     shortcuts: {
       sendMessage: 'Ctrl+Enter'
-    }
+    },
+    mcpServers: [],
+    maxPageContentLength: 15000
   },
   messages: [],
   connectionStatus: { state: 'idle' },

@@ -11,6 +11,21 @@ export interface APIConfig {
   maxTokens?: number;
 }
 
+export interface MCPServerConfig {
+  id: string;
+  name: string;
+  url: string;         // HTTP(S) 端点
+  enabled: boolean;
+  tools?: MCPTool[];   // 从服务器拉取的工具列表
+  lastConnected?: string;
+}
+
+export interface MCPTool {
+  name: string;
+  description: string;
+  inputSchema: any;
+}
+
 export interface Settings {
   provider: 'openai' | 'anthropic' | 'custom';
   protocol: 'openai' | 'anthropic';
@@ -32,6 +47,8 @@ export interface Settings {
   shortcuts: {
     sendMessage: string;
   };
+  mcpServers: MCPServerConfig[];
+  maxPageContentLength: number; // 页面内容截断长度
 }
 
 export interface HistoryItem {
@@ -61,8 +78,11 @@ export interface PromptTemplate {
 
 export interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system' | 'tool';
   content: string | any[]; // Support for multimodal content
+  tool_calls?: any[]; // For assistant messages
+  tool_call_id?: string; // For tool messages
+  name?: string; // For tool messages
   timestamp: string;
 }
 
@@ -116,4 +136,14 @@ export interface ComplexityMetrics {
   abstract: number;
   wordCount?: number;
   wpm?: number;
+}
+
+// 数据导出/导入格式
+export interface ExportData {
+  version: string;
+  exportedAt: string;
+  settings: Partial<Settings>;
+  chatHistory: Message[];
+  readingHistory: HistoryItem[];
+  readingStats: ReadingStats[];
 }

@@ -1,7 +1,7 @@
 /**
  * 翻译 Skill - 支持多语言翻译
  */
-import { skillManager, Skill } from './base'
+import { skillManager } from './base'
 
 interface TranslationResult {
   original: string
@@ -27,8 +27,8 @@ skillManager.registerSkill({
   parameters: {
     type: 'object',
     properties: {
-      text: { 
-        type: 'string', 
+      text: {
+        type: 'string',
         description: '需要翻译的文本'
       },
       targetLang: {
@@ -48,10 +48,10 @@ skillManager.registerSkill({
     try {
       const sourceCode = sourceLang === 'auto' ? 'auto' : LANGUAGE_CODES[sourceLang] || 'auto'
       const targetCode = LANGUAGE_CODES[targetLang] || 'zh'
-      
+
       // 使用免费的翻译 API（这里使用模拟实现，实际可以接入 Google Translate API）
       const translated = await mockTranslate(text, sourceCode, targetCode)
-      
+
       return {
         success: true,
         original: text,
@@ -68,7 +68,7 @@ skillManager.registerSkill({
       }
     }
   }
-} as Skill)
+})
 
 // 模拟翻译函数 - 实际项目中可以替换为真实 API
 async function mockTranslate(text: string, _sourceLang: string, targetLang: string): Promise<string> {
@@ -84,6 +84,6 @@ async function mockTranslate(text: string, _sourceLang: string, targetLang: stri
     'es': 'Español',
     'ru': 'Русский'
   }
-  
+
   return `[${langMap[targetLang] || 'Translated'}]: ${text}`
 }

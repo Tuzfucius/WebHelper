@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useContext } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react'
 
@@ -47,7 +47,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const showToast = (message: string, type: ToastType = 'info', duration = 4000) => {
     const id = Date.now().toString()
     setToasts(prev => [...prev, { id, message, type, duration }])
-    
+
     if (duration > 0) {
       setTimeout(() => hideToast(id), duration)
     }

@@ -13,13 +13,28 @@ import '../index.css'
 // Since this is a content script, it runs once per page load.
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'GET_PAGE_CONTENT') {
-        const data = extractPageContent()
-        sendResponse(data)
+        try {
+            const data = extractPageContent()
+            sendResponse(data)
+        } catch (e) {
+            console.error('[AI Reading Assistant] Failed to extract page content:', e)
+            // 降级：返回基础内容
+            sendResponse({
+                title: document.title,
+                content: document.body.innerText.substring(0, 50000),
+                excerpt: '',
+                stats: { vocabulary: 0, sentence: 0, density: 0, abstract: 0 }
+            })
+        }
     } else if (message.type === 'GET_PAGE_STATS') {
-        const data = extractPageContent()
-        sendResponse(data.stats)
+        try {
+            const data = extractPageContent()
+            sendResponse(data.stats)
+        } catch (e) {
+            sendResponse({ vocabulary: 0, sentence: 0, density: 0, abstract: 0 })
+        }
     }
-    return undefined // Sync response
+    return true // 保持消息通道开放
 })
 
 // Create a container for our extension

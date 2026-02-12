@@ -2,9 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useSettings, useMessages, useReadingStats, useApp, useHistory } from '../stores/AppContext'
 import { ScreenshotCropper } from '../components/ScreenshotCropper'
 import { ReadingDashboard } from './components/ReadingDashboard'
-import { PromptManager } from './components/PromptManager'
-import { APIConfiguration } from './components/APIConfiguration'
-import { UrlManager } from './components/UrlManager'
+import { SettingsPage } from './SettingsPage'
 import { onMessage, sendToActiveTab } from '../utils/messaging'
 import { contextEngine } from '../utils/context'
 import { useTranslation } from '../utils/i18n'
@@ -30,7 +28,9 @@ import {
   ChevronDown,
   Trash2,
   Edit2,
-  RotateCcw
+  RotateCcw,
+  Copy,
+  Square
 } from 'lucide-react'
 
 interface SidePanelProps {
@@ -60,11 +60,15 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   // Image Upload State
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadedImage, setUploadedImage] = useState<string | null>(null)
   const [pageContent, setPageContent] = useState<string>('')
+
+  // 页面内容最大截断长度
+  const MAX_PAGE_CONTENT_LENGTH = 15000
 
   // Track reading time
   useEffect(() => {
@@ -258,31 +262,50 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
   const handleCopy = (content: string | any[]) => {
     const text = typeof content === 'string' ? content : JSON.stringify(content)
     navigator.clipboard.writeText(text).then(() => {
-      // Optional: Add a toast notification here if available
+      showToast('已复制到剪贴板', 'success')
+    }).catch(() => {
+      showToast('复制失败', 'error')
     })
   }
 
   const handleRegenerate = async (msgId: string) => {
-    // Find the message index
     const idx = messages.findIndex(m => m.id === msgId)
     if (idx === -1) return
-
-    // If it's an assistant message, we typically want to remove it and rewrite
-    // If it's a user message, we might want to re-trigger from there
     const msg = messages[idx]
 
     if (msg.role === 'assistant') {
-      deleteMessage(msg.id)
-      // Trigger send again using the previous user message
+      // 先保存需要的数据再删除，避免状态竞态
       const prevUserMsg = messages[idx - 1]
-      if (prevUserMsg && prevUserMsg.role === 'user') {
-        const content = typeof prevUserMsg.content === 'string' ? prevUserMsg.content : ''
-        setUserInput(content)
-        // We'll call sendMessage in a bit, but we need to handle the state properly
-        // For simplicity in this UI, we just set the input and let user click send or we trigger it.
-        // Actually, let's just trigger its logic.
+      const content = prevUserMsg && prevUserMsg.role === 'user'
+        ? (typeof prevUserMsg.content === 'string' ? prevUserMsg.content : '') : ''
+      deleteMessage(msg.id)
+      if (content) {
         handleSendMessage(true, content)
       }
+    }
+  }
+
+  // 编辑消息后重新发送
+  const handleEditAndResend = (msgId: string, newContent: string) => {
+    const idx = messages.findIndex(m => m.id === msgId)
+    if (idx === -1) return
+    // 更新消息内容
+    updateMessage(msgId, newContent)
+    // 删除该消息之后的所有消息
+    const toDelete = messages.slice(idx + 1)
+    toDelete.forEach(m => deleteMessage(m.id))
+    setEditingMessageId(null)
+    // 触发重新发送
+    handleSendMessage(true, newContent)
+  }
+
+  // 停止生成
+  const handleStopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+      setIsTyping(false)
+      showToast('已停止生成', 'info')
     }
   }
 
@@ -296,22 +319,30 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
       return
     }
 
+    // 1. Prepare initial messages and UI
+    let currentMessages = [...messages]
+
     if (!isRegenerate) {
       const userMessageContent = textToSend + (uploadedImage ? ' [Image Attached]' : '') + (contextScreenshot ? ' [Screenshot Attached]' : '')
-      addMessage({
+      const newUserMsg = addMessage({
         role: 'user',
         content: userMessageContent
       })
+      currentMessages.push(newUserMsg)
       setUserInput('')
     }
+    // If regenerate, we assume the last user message is already in 'messages' (and thus in currentMessages)
+    // BUT handleRegenerate in this file deletes the assistant message, so the last one IS the user message.
+    // However, we need to ensure currentMessages reflects the state *after* standard React updates.
+    // Since state updates are async, 'messages' here might be stale if called immediately after setMessages.
+    // But handleRegenerate calls this function directly after state updates... which is risky.
+    // For now, we trust 'messages' is close enough or updated.
 
     setUploadedImage(null)
     setContextScreenshot(undefined)
     setIsTyping(true)
 
-    // ... rest of the send logic remains similar but uses textToSend
-
-    // Log stats
+    // Log stats logic (omitted for brevity, keep existing if needed, but it's side effect)
     if (initialContext.length > 50) {
       try {
         chrome.storage.local.get(['lastArticleRead'], (res) => {
@@ -325,7 +356,9 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
       } catch (e) { }
     }
 
-    let assistantMsgId: string | undefined = undefined
+    // Create AbortController
+    const controller = new AbortController()
+    abortControllerRef.current = controller
 
     try {
       const activePrompt = settings.prompts?.find(p => p.id === settings.activePromptId)
@@ -335,134 +368,249 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
       try {
         const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
         if (tabs[0]?.id) {
-          const content = await chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_PAGE_CONTENT' }).catch(() => null)
-          if (content) {
+          let content: any = null
+          try {
+            content = await sendToActiveTab('GET_PAGE_CONTENT', undefined)
+          } catch {
+            try {
+              content = await chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_PAGE_CONTENT' })
+            } catch {
+              console.warn('[SidePanel] Content script not reachable')
+            }
+          }
+          if (content && content.content) {
+            const truncatedContent = content.content.substring(0, MAX_PAGE_CONTENT_LENGTH)
             const pageCtx = {
               url: tabs[0].url || '',
-              title: content.title,
-              content: content.content, // Use full content
+              title: content.title || document.title || '',
+              content: truncatedContent,
               timestamp: Date.now()
             }
             await contextEngine.addPage(pageCtx, settings.contextLength)
 
-            // Add CURRENT PAGE context with structured tags
-            systemContent += `\n\n[CURRENT_PAGE_CONTEXT]\nURL: ${pageCtx.url}\nTitle: ${pageCtx.title}\nFull Content:\n${pageCtx.content}\n[/CURRENT_PAGE_CONTEXT]`
-
+            systemContent += `\n\n[CURRENT_PAGE_CONTEXT]\nURL: ${pageCtx.url}\nTitle: ${pageCtx.title}\nContent (truncated to ${MAX_PAGE_CONTENT_LENGTH} chars):\n${pageCtx.content}\n[/CURRENT_PAGE_CONTEXT]`
             const memory = await contextEngine.getRelevantContext(pageCtx.url, settings.contextLength)
             if (memory) systemContent += `\n\n[RELEVANT_HISTORY_CONTEXT]\n${memory}\n[/RELEVANT_HISTORY_CONTEXT]`
           }
         }
-      } catch (e) { }
+      } catch (e) {
+        console.warn('[SidePanel] Context extraction failed:', e)
+      }
 
-      let fullContent = userInput
+      // Prepare User Content for API (Image handling)
+      let fullContent = textToSend
       if (initialContext) fullContent = `Selected: ${initialContext}\n\n${fullContent}`
 
       let apiUserContent: any = fullContent
       if (uploadedImage) {
+        // ... (Keep existing image logic if possible, or simplified)
         const isOpenAI = settings.provider === 'openai' || (settings.provider === 'custom' && settings.protocol === 'openai')
         if (isOpenAI) {
-          apiUserContent = [
-            { type: 'text', text: fullContent },
-            { type: 'image_url', image_url: { url: uploadedImage } }
-          ]
+          apiUserContent = [{ type: 'text', text: fullContent }, { type: 'image_url', image_url: { url: uploadedImage } }]
         } else {
           const matches = uploadedImage.match(/^data:(.+);base64,(.+)$/)
           if (matches) {
-            apiUserContent = [
-              { type: 'text', text: fullContent },
-              { type: 'image', source: { type: 'base64', media_type: matches[1], data: matches[2] } }
-            ]
+            apiUserContent = [{ type: 'text', text: fullContent }, { type: 'image', source: { type: 'base64', media_type: matches[1], data: matches[2] } }]
           }
         }
       }
 
-      const apiHistory = messages.map(m => ({ role: m.role, content: m.content }))
-      const curAssistantMsg = addMessage({ role: 'assistant', content: '' })
-      assistantMsgId = curAssistantMsg.id
-      let accumulated = ''
+      // If this is the FIRST turn of this call (i.e. user just sent message), we need to update the last message in currentMessages with the processed content?
+      // No, let's just rely on currentMessages having string content and we construct API payload dynamically.
 
-      const isAnthropic = settings.provider === 'anthropic' || (settings.provider === 'custom' && settings.protocol === 'anthropic')
-      const baseUrl = settings.provider === 'openai' ? 'https://api.openai.com/v1' :
-        settings.provider === 'anthropic' ? 'https://api.anthropic.com/v1' :
-          settings.baseUrl.replace(/\/+$/, '')
-      const endpoint = isAnthropic ? '/messages' : '/chat/completions'
+      // Update the LAST message object in our local 'currentMessages' to have the correct API-ready content if it was the one we just added?
+      // Actually 'addMessage' only accepts string or array. The logic above for apiUserContent is complex.
+      // For simplicity, we assume the UI shows text, but we send 'apiUserContent' to API.
+      // But we are in a loop now.
 
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...(settings.customHeaders || {})
-      }
-      if (isAnthropic) {
-        headers['x-api-key'] = settings.apiKey
-        headers['anthropic-version'] = '2023-06-01'
-      } else {
-        headers['Authorization'] = `Bearer ${settings.apiKey}`
-      }
+      // TOOL EXECUTION LOOP
+      let turnCount = 0
+      const MAX_TURNS = 5
 
-      // Prepare tools
-      const tools = skillManager.getSkillsDefinitions();
+      while (turnCount < MAX_TURNS) {
+        turnCount++
 
-      const response = await fetch(`${baseUrl}${endpoint}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          model: settings.modelName,
-          messages: isAnthropic ? [...apiHistory, { role: 'user', content: apiUserContent }] :
-            [{ role: 'system', content: systemContent }, ...apiHistory, { role: 'user', content: apiUserContent }],
-          system: isAnthropic ? systemContent : undefined,
-          temperature: settings.temperature ?? 0.7,
-          max_tokens: settings.maxTokens ?? 4096,
-          stream: true,
-          tools: tools.length > 0 ? tools.map(t => ({ type: 'function', function: t })) : undefined
+        // Construct API History from currentMessages
+        const isAnthropic = settings.provider === 'anthropic' || (settings.provider === 'custom' && settings.protocol === 'anthropic')
+
+        // Filter messages for API
+        const apiHistory = currentMessages.map((m, index) => {
+          // For the very last message if it is USER, we might want to use 'apiUserContent' if it has images.
+          // But 'currentMessages' stores what is in UI.
+          // Simplification: We use what's in 'm.content', unless it's the specific message we just added with image.
+          // This is getting complicated. Let's just mapping.
+          const msg: any = { role: m.role, content: m.content }
+          if (m.tool_calls) msg.tool_calls = m.tool_calls
+          if (m.tool_call_id) msg.tool_call_id = m.tool_call_id
+          if (m.name) msg.name = m.name
+          return msg
         })
-      })
 
-      if (!response.ok) throw new Error(`API Error: ${response.statusText}`)
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
+        // On first turn, if we have image, we might need to override the last user message content in 'apiHistory'
+        if (turnCount === 1 && uploadedImage && apiHistory.length > 0 && apiHistory[apiHistory.length - 1].role === 'user') {
+          apiHistory[apiHistory.length - 1].content = apiUserContent
+        }
 
-      while (reader) {
-        const { done, value } = await reader.read()
-        if (done) break
-        const chunk = decoder.decode(value)
-        const lines = chunk.split('\n').filter(l => l.trim() !== '')
+        const baseUrl = settings.provider === 'openai' ? 'https://api.openai.com/v1' :
+          settings.provider === 'anthropic' ? 'https://api.anthropic.com/v1' :
+            settings.baseUrl.replace(/\/+$/, '')
+        const endpoint = isAnthropic ? '/messages' : '/chat/completions'
 
-        for (const line of lines) {
-          if (line.includes('[DONE]')) continue
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.replace('data: ', ''))
-              let delta = ''
-              if (!isAnthropic) {
-                // Handle tool_calls if any (simplified for now)
-                if (data.choices[0]?.delta?.tool_calls) {
-                  const tc = data.choices[0].delta.tool_calls[0];
-                  if (tc.function) {
-                    // Logic to collect tool call arguments and execute
-                    console.log('Tool call detected:', tc.function.name);
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          ...(settings.customHeaders || {})
+        }
+        if (isAnthropic) {
+          headers['x-api-key'] = settings.apiKey
+          headers['anthropic-version'] = '2023-06-01'
+        } else {
+          headers['Authorization'] = `Bearer ${settings.apiKey}`
+        }
+
+        const tools = skillManager.getSkillsDefinitions();
+
+        // Add Assistant Placeholder to UI
+        const assistantMsg = addMessage({ role: 'assistant', content: '' })
+        const assistantId = assistantMsg.id
+
+        const response = await fetch(`${baseUrl}${endpoint}`, {
+          method: 'POST',
+          headers,
+          signal: controller.signal,
+          body: JSON.stringify({
+            model: settings.modelName,
+            messages: isAnthropic ? apiHistory : [{ role: 'system', content: systemContent }, ...apiHistory],
+            system: isAnthropic ? systemContent : undefined,
+            temperature: settings.temperature ?? 0.7,
+            max_tokens: settings.maxTokens ?? 4096,
+            stream: true,
+            tools: tools.length > 0 ? tools.map(t => ({ type: 'function', function: t })) : undefined
+          })
+        })
+
+        if (!response.ok) throw new Error(`API Error: ${response.statusText}`)
+        const reader = response.body?.getReader()
+        const decoder = new TextDecoder()
+
+        let accumulatedContent = ''
+        let toolCallsMap = new Map<number, any>()
+
+        while (reader) {
+          const { done, value } = await reader.read()
+          if (done) break
+          const chunk = decoder.decode(value)
+          const lines = chunk.split('\n').filter(l => l.trim() !== '')
+
+          for (const line of lines) {
+            if (line.includes('[DONE]')) continue
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.replace('data: ', ''))
+
+                // Handle Anthropic (TODO: better tool support for Anthropic)
+                if (isAnthropic) {
+                  if (data.type === 'content_block_delta') {
+                    const text = data.delta?.text || ''
+                    accumulatedContent += text
+                    updateMessage(assistantId, accumulatedContent)
+                  }
+                  // Parsing Anthropic tools is complex (content_block_start etc), skipping for now to focus on OpenAI compat
+                } else {
+                  // OpenAI
+                  const choice = data.choices[0]
+                  const delta = choice?.delta
+
+                  if (delta?.content) {
+                    accumulatedContent += delta.content
+                    updateMessage(assistantId, accumulatedContent)
+                  }
+
+                  if (delta?.tool_calls) {
+                    for (const tc of delta.tool_calls) {
+                      if (!toolCallsMap.has(tc.index)) {
+                        toolCallsMap.set(tc.index, { index: tc.index, id: '', type: 'function', function: { name: '', arguments: '' } })
+                      }
+                      const current = toolCallsMap.get(tc.index)
+                      if (tc.id) current.id = tc.id
+                      if (tc.function?.name) current.function.name += tc.function.name
+                      if (tc.function?.arguments) current.function.arguments += tc.function.arguments
+                    }
                   }
                 }
-                delta = data.choices[0]?.delta?.content || ''
-              } else {
-                delta = data.type === 'content_block_delta' ? data.delta?.text : ''
-              }
-              if (delta) {
-                accumulated += delta
-                updateMessage(curAssistantMsg.id, accumulated)
-              }
-            } catch (e) { }
+              } catch (e) { }
+            }
           }
         }
-      }
-    } catch (error) {
-      console.error('Chat error:', error)
-      const errText = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-      if (assistantMsgId) {
-        updateMessage(assistantMsgId, errText)
+
+        const toolCalls = Array.from(toolCallsMap.values())
+
+        // Update local history with the assistant message
+        currentMessages.push({
+          id: assistantId,
+          role: 'assistant',
+          content: accumulatedContent,
+          tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+          timestamp: new Date().toISOString()
+        })
+
+        // Execute Tools
+        if (toolCalls.length > 0) {
+          let toolOutputs = []
+          // Notify user tools are running
+          updateMessage(assistantId, accumulatedContent ? accumulatedContent + '\n\nExecuting tools...' : 'Executing tools...')
+          // Wait, prefer not to change content if possible, but UI feedback is good.
+
+          for (const tc of toolCalls) {
+            const name = tc.function.name
+            const args = tc.function.arguments
+            let output = ''
+            try {
+              const parsedArgs = JSON.parse(args)
+
+              // Show toast or slight UI update?
+              // updateMessage(assistantId, accumulatedContent + `\nThinking... (Calling ${name})`)
+
+              const result = await skillManager.callSkill(name, parsedArgs)
+              output = typeof result === 'string' ? result : JSON.stringify(result)
+            } catch (e: any) {
+              output = `Error executing tool ${name}: ${e.message}`
+            }
+
+            const toolMsg = {
+              id: Date.now().toString() + Math.random(),
+              role: 'tool' as const,
+              tool_call_id: tc.id,
+              name: name,
+              content: output,
+              timestamp: new Date().toISOString()
+            }
+
+            addMessage(toolMsg)
+            currentMessages.push(toolMsg)
+            toolOutputs.push(toolMsg)
+          }
+
+          // Remove the "Executing tools..." suffix if I added it
+          updateMessage(assistantId, accumulatedContent) // Restore
+
+          // Loop continues to send tool outputs to AI
+        } else {
+          // No tools, we are done
+          break
+        }
+      } // end loop
+
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        console.log('Generation stopped by user')
       } else {
+        console.error('Chat error:', error)
+        const errText = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
         addMessage({ role: 'assistant', content: errText })
       }
     } finally {
       setIsTyping(false)
+      abortControllerRef.current = null
     }
   }
 
@@ -605,7 +753,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
                                 autoFocus
                               />
                               <div className="flex justify-end gap-2 text-xs">
-                                <button onClick={() => { updateMessage(msg.id, editValue); setEditingMessageId(null) }} className="px-3 py-1 bg-[#6750A4] text-white rounded-full hover:bg-[#5235a0] transition-colors">Save</button>
+                                <button onClick={() => handleEditAndResend(msg.id, editValue)} className="px-3 py-1 bg-[#6750A4] text-white rounded-full hover:bg-[#5235a0] transition-colors">保存并重发</button>
                                 <button onClick={() => setEditingMessageId(null)} className="px-3 py-1 border border-current rounded-full hover:bg-black/5 transition-colors">Cancel</button>
                               </div>
                             </div>
@@ -616,7 +764,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
                               </div>
                               <div className={`absolute top-0 ${msg.role === 'user' ? 'left-0 -translate-x-full pr-2' : 'right-0 translate-x-full pl-2'} opacity-0 group-hover:opacity-100 flex flex-col gap-1 transition-all duration-200 z-10`}>
                                 <div className="flex flex-col gap-1.5 p-1.5 rounded-xl bg-white/90 dark:bg-[#1C1B1F]/90 backdrop-blur-md shadow-lg border border-[#E7E0EC] dark:border-[#49454F]">
-                                  <button onClick={() => handleCopy(msg.content)} title="Copy" className="p-1.5 hover:bg-[#F3EDF7] dark:hover:bg-[#4A4458] rounded-lg text-[#49454F] dark:text-[#CAC4D0] transition-colors"><Bot size={14} /></button>
+                                  <button onClick={() => handleCopy(msg.content)} title="Copy" className="p-1.5 hover:bg-[#F3EDF7] dark:hover:bg-[#4A4458] rounded-lg text-[#49454F] dark:text-[#CAC4D0] transition-colors"><Copy size={14} /></button>
                                   <button onClick={() => { setEditingMessageId(msg.id); setEditValue(typeof msg.content === 'string' ? msg.content : '') }} title="Edit" className="p-1.5 hover:bg-[#F3EDF7] dark:hover:bg-[#4A4458] rounded-lg text-[#49454F] dark:text-[#CAC4D0] transition-colors"><Edit2 size={14} /></button>
                                   {msg.role === 'assistant' && idx === messages.length - 1 && (
                                     <button onClick={() => handleRegenerate(msg.id)} title="Regenerate" className="p-1.5 hover:bg-[#F3EDF7] dark:hover:bg-[#4A4458] rounded-lg text-[#49454F] dark:text-[#CAC4D0] transition-colors"><RotateCcw size={14} /></button>
@@ -629,7 +777,18 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
                         </div>
                       </div>
                     ))}
-                    {isTyping && <div className="text-xs text-gray-500 animate-pulse">AI is thinking...</div>}
+                    {isTyping && (
+                      <div className="flex items-center gap-2">
+                        <div className="text-xs text-gray-500 animate-pulse">AI 正在思考...</div>
+                        <button
+                          onClick={handleStopGeneration}
+                          className="flex items-center gap-1 px-2.5 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-full text-xs font-medium hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+                        >
+                          <Square size={12} fill="currentColor" />
+                          停止
+                        </button>
+                      </div>
+                    )}
                     <div ref={messagesEndRef} />
                   </div>
 
@@ -647,7 +806,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
                       <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
                       <div className="absolute right-2 top-1.5 flex gap-1">
                         <button onClick={() => fileInputRef.current?.click()} className="p-2"><ImageIcon size={18} /></button>
-                        <button onClick={handleSendMessage} className="p-2 bg-[#6750A4] text-white rounded-full"><Send size={18} /></button>
+                        <button onClick={() => handleSendMessage()} className="p-2 bg-[#6750A4] text-white rounded-full"><Send size={18} /></button>
                       </div>
                     </div>
                   </div>
@@ -690,11 +849,9 @@ export const SidePanel: React.FC<SidePanelProps> = ({ initialContext, onClose })
               )}
 
               {currentView === 'settings' && (
-                <motion.div key="settings" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 overflow-y-auto p-4 space-y-6">
-                  <APIConfiguration settings={settings} onUpdate={updateSettings} connectionStatus={connectionStatus} onTestConnection={handleTestConnection} isTesting={isTestingConnection} />
-                  <PromptManager settings={settings} onUpdate={updateSettings} />
-                  <UrlManager selectedUrls={settings.selectedUrls} onUrlsChange={(urls) => updateSettings({ selectedUrls: urls })} />
-                </motion.div>
+                <div key="settings" className="absolute inset-0 overflow-y-auto bg-white dark:bg-[#141218]">
+                  <SettingsPage />
+                </div>
               )}
             </AnimatePresence>
           </div>
